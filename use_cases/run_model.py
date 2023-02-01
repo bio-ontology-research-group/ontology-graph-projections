@@ -71,7 +71,7 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
                   device = device,
                   seed = seed)
 
-    #model.train()
+    model.train()
     mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test()
     with open(result_dir, "a") as f:
         line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
