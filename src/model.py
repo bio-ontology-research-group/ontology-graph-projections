@@ -65,6 +65,7 @@ class Model():
                  margin = 1,
                  weight_decay = 0,
                  batch_size = 128,
+                 lr = 0.001,
                  test_batch_size = 8,
                  num_negs = 1,
                  epochs = 10,
@@ -83,6 +84,7 @@ class Model():
         self.margin = margin
         self.weight_decay = weight_decay
         self.batch_size = batch_size
+        self.lr = lr
         self.test_batch_size = test_batch_size
         self.num_negs = num_negs
         self.epochs = epochs
@@ -339,8 +341,8 @@ class Model():
     def train(self):
 
         optimizer = optim.Adam(self.model.parameters(), lr=0.000001, weight_decay = self.weight_decay)
-        min_lr = 0.000001
-        max_lr = 0.0001
+        min_lr = self.lr/100  #0.0001 #0.000001
+        max_lr = self.lr #0.01 #0.0001
         scheduler = th.optim.lr_scheduler.CyclicLR(optimizer, base_lr=min_lr, max_lr=max_lr, step_size_up = 30, cycle_momentum = False)
         criterion = nn.MarginRankingLoss(margin=self.margin)
         criterion_bpr = nn.LogSigmoid()
@@ -424,9 +426,9 @@ class Model():
         print("Number of classes:", num_ontology_classes)
 
         hits_at_1 = 0
-        hits_at_3 = 0
-        hits_at_5 = 0
         hits_at_10 = 0
+        hits_at_100 = 0
+        
         mean_rank = 0
         mrr = 0
 
@@ -470,14 +472,11 @@ class Model():
                     mrr += (1/(rank+1))
                     if rank == 0:
                         hits_at_1 += 1
-                    if rank < 3:
-                        hits_at_3 += 1
-                    if rank < 5:
-                        hits_at_5 += 1
                     if rank < 10:
                         hits_at_10 += 1
-                
-                
+                    if rank < 100:
+                        hits_at_100 += 1
+                                            
                 # for i, tail in enumerate(tails):
                                         
                 #     tail_id = th.where(all_classes == tail)[0].item()
@@ -499,11 +498,9 @@ class Model():
         mean_rank /= test_subsumption_dl.dataset_len
         mrr /= test_subsumption_dl.dataset_len
         hits_at_1 /= test_subsumption_dl.dataset_len
-        hits_at_3 /= test_subsumption_dl.dataset_len
-        hits_at_5 /= test_subsumption_dl.dataset_len
         hits_at_10 /= test_subsumption_dl.dataset_len
-
-        return mean_rank, mrr, hits_at_1, hits_at_3, hits_at_5, hits_at_10
+        hits_at_100 /= test_subsumption_dl.dataset_len
+        return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
 
                 
 

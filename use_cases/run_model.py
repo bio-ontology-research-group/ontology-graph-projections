@@ -17,6 +17,7 @@ from src.utils import seed_everything
 @ck.option('--margin', '-m', required=True, type=float, default=0.1)
 @ck.option('--weight-decay', '-wd', required=True, type=float, default = 0.0)
 @ck.option('--batch-size', '-bs', required=True, type=int, default=4096*8)
+@ck.option('--lr', '-lr', required=True, type=float, default=0.001)
 @ck.option('--test-batch-size', '-tbs', required=True, type=int, default=32)
 @ck.option('--num-negs', '-negs', required=True, type=int, default=2)
 @ck.option('--epochs', '-e', required=True, type=int, default=300)
@@ -26,7 +27,7 @@ from src.utils import seed_everything
 @ck.option('--device', '-d', required=True, type=ck.Choice(['cpu', 'cuda']))
 @ck.option('--seed', '-s', required=True, type=int, default=42)
 @ck.option('--result-dir', '-rd', required=True)
-def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batch_size, test_batch_size, num_negs, epochs, reduced_subsumption, reduced_existential, test_file, device, seed, result_dir):
+def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batch_size, lr, test_batch_size, num_negs, epochs, reduced_subsumption, reduced_existential, test_file, device, seed, result_dir):
 
     print("Configuration:")
     print("\tuse_case: ", use_case)
@@ -37,6 +38,7 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
     print("\tmargin: ", margin)
     print("\tweight_decay: ", weight_decay)
     print("\tbatch_size: ", batch_size)
+    print("\tlr: ", lr)
     print("\ttest_batch_size: ", test_batch_size)
     print("\tnum_negs: ", num_negs)
     print("\tepochs: ", epochs)
@@ -56,6 +58,7 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
                   margin = margin,
                   weight_decay = weight_decay,
                   batch_size = batch_size,
+                  lr = lr,
                   test_batch_size = test_batch_size,
                   num_negs = num_negs,
                   reduced_subsumption = reduced_subsumption,
@@ -66,9 +69,9 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
                   seed = seed)
 
     model.train()
-    mean_rank, mrr, hits_at_1, hits_at_3, hits_at_5, hits_at_10 = model.test()
+    mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test()
     with open(result_dir, "a") as f:
-        line = f"{emb_dim},{p_norm},{margin},{weight_decay},{batch_size},{mean_rank},{mrr},{hits_at_1},{hits_at_3},{hits_at_5},{hits_at_10}\n"
+        line = f"{emb_dim},{p_norm},{margin},{weight_decay},{batch_size},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
         f.write(line)
 if __name__ == "__main__":
     main()
