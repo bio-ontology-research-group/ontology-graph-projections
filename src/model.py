@@ -204,6 +204,7 @@ class Model():
         params_str += f"_marg{self.margin}"
         params_str += f"_reg{self.weight_decay}"
         params_str += f"_bs{self.batch_size}"
+        params_str += f"_lr{self.lr}"
         params_str += f"_negs{self.num_negs}"
         
 
