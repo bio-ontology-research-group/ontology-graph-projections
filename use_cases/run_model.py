@@ -79,7 +79,8 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
     mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_filtered()
     result_dir = result_dir.replace(".csv", "_filtered.csv")
     with open(result_dir, "a") as f:
-        line = f"{emb_dim},{p_norm},{margin},{weight_decay},{batch_size},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
+        line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
+        f.write(line)
         
 if __name__ == "__main__":
     main()
