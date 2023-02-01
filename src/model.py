@@ -186,7 +186,15 @@ class Model():
         if self._graph_path is not None:
             return self._graph_path
 
-        graph_path = os.path.join(self.root, f"{prefix[self.use_case]}.{suffix[self.graph_type]}")
+        graph_name = prefix[self.use_case]
+        if self.reduced_subsumption and not self.reduced_existential:
+            graph_name += "_90_100"
+        elif self.reduced_existential and not self.reduced_subsumption:
+            graph_name += "_100_90"
+        elif self.reduced_existential and self.reduced_subsumption:
+            graph_name += "_90_90"
+        
+        graph_path = os.path.join(self.root, f"{graph_name}.{suffix[self.graph_type]}")
         assert os.path.exists(graph_path), f"Graph file {graph_path} does not exist"
         self._graph_path = graph_path
         return self._graph_path
@@ -478,23 +486,6 @@ class Model():
                     if rank < 100:
                         hits_at_100 += 1
                                             
-                # for i, tail in enumerate(tails):
-                                        
-                #     tail_id = th.where(all_classes == tail)[0].item()
-                #     rank = th.where(orderings[i] == tail_id)[0][0]
-                #     rank = rank.item()
-                #     mean_rank += rank
-                #     mrr += (1/(rank+1))
-                #     if rank == 0:
-                #         hits_at_1 += 1
-                #     if rank < 3:
-                #         hits_at_3 += 1
-                #     if rank < 5:
-                #         hits_at_5 += 1
-                #     if rank < 10:
-                #         hits_at_10 += 1
-
-                        
                         
         mean_rank /= test_subsumption_dl.dataset_len
         mrr /= test_subsumption_dl.dataset_len
@@ -503,7 +494,111 @@ class Model():
         hits_at_100 /= test_subsumption_dl.dataset_len
         return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
 
+
+    def test_filtered(self, mode="subsumption"):
+
+        if not mode in ["subsumption", "existential"]:
+            raise ValueError("Mode must be either subsumption or existential")
+        
+        print(f"Loading best model from {self.model_path}")
+        print("\nTesting")
+        self.model.load_state_dict(th.load(self.model_path))
+        self.model = self.model.to(self.device)
+
+        if mode == "subsumption":
+            test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+        elif mode == "existential":
+            test_subsumption_dl = self.create_existential_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+            
+        self.model.eval()
+                                                
+        num_ontology_classes = len(self.ontology_classes_idxs)
+
+        print("Number of classes:", num_ontology_classes)
+
+        hits_at_1 = 0
+        hits_at_10 = 0
+        hits_at_100 = 0
+        
+        mean_rank = 0
+        mrr = 0
+
+        test_set = dict()
+        print("Getting filtering data...")
+        for heads, rels, tails in tqdm(test_subsumption_dl):
+            for i, head in enumerate(heads):
+                h = head.item()
+                r = rels[i].item()
+                t = tails[i].item()
+                if (h,r) not in test_set:
+                    test_set[(h,r)] = set()
+                test_set[(h,r)].add(t)
+        
+        all_classes = th.tensor(list(self.ontology_classes_idxs), dtype=th.long, device=self.device)
+        print("Testing...")
+        with th.no_grad():
+            for heads, rels, tails in tqdm(test_subsumption_dl):
+                                                    
+                aux = heads.to(self.device)
+                num_heads = len(heads)
                 
+                heads = heads.to(self.device)
+                heads = heads.repeat(num_ontology_classes,1).T
+
+                #assert (heads[0,:] == aux[0]).all(), f"{heads[0,:]}, {aux[0]}"
+                heads = heads.reshape(-1)
+                #assert (heads[:num_ontology_classes] == aux[0]).all(), f"{heads[:num_ontology_classes]}, {aux[0]}"
+
+                rels = rels.to(self.device)
+                rels = rels.repeat(num_ontology_classes,1).T
+                rels = rels.reshape(-1)
+                                                
+                eval_tails = self.ontology_classes_idxs.repeat(num_heads)
+                #assert (eval_tails[:num_ontology_classes] == all_classes).all(), f"{eval_tails[:num_ontology_classes]}, {self.ontology_classes}"
+                
+                #assert heads.shape == eval_tails.shape == rels.shape, f"{heads.shape} {eval_tails.shape} {rels.shape}"
+                 
+                data = (heads, rels, eval_tails)
+                logits = self.model.forward(data, mode="kg")
+                logits = logits.reshape(num_heads, num_ontology_classes)
+                tails = tails.to(self.device)
+                for i, head in enumerate(aux):
+                    head_id = th.where(all_classes==head)[0].item()
+                    rel_id = rels[i].item()
+                    for cand_tail in list(test_set[(head_id, rel_id)]):
+                        if cand_tail == tails[i].item():
+                            continue
+                        cand_tail_id = th.where(all_classes==cand_tail)[0].item()
+                        logits[i, cand_tail_id] = -1e9
+                        
+                
+                orderings = th.argsort(logits, dim=1, descending=True)
+
+                all_classes_repeated = all_classes.repeat(len(tails),1)
+                tail_ids = th.nonzero(all_classes_repeated == tails.to(self.device).unsqueeze(1), as_tuple=False)[:,1]
+                                                                            
+                ranks = th.nonzero(orderings == tail_ids.unsqueeze(1), as_tuple=False)[:,1]
+
+                for rank in ranks:
+                    rank = rank.item()
+                    mean_rank += rank
+                    mrr += (1/(rank+1))
+                    if rank == 0:
+                        hits_at_1 += 1
+                    if rank < 10:
+                        hits_at_10 += 1
+                    if rank < 100:
+                        hits_at_100 += 1
+                                            
+                        
+        mean_rank /= test_subsumption_dl.dataset_len
+        mrr /= test_subsumption_dl.dataset_len
+        hits_at_1 /= test_subsumption_dl.dataset_len
+        hits_at_10 /= test_subsumption_dl.dataset_len
+        hits_at_100 /= test_subsumption_dl.dataset_len
+        return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
+
+
 
         
                 
