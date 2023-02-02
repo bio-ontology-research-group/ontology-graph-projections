@@ -9,7 +9,7 @@ import random
 from org.semanticweb.owlapi.model import ClassExpressionType as CT
 from org.semanticweb.owlapi.model import AxiomType, IRI
 from org.semanticweb.owlapi.model.parameters import Imports
-from org.semanticweb.owlapi.formats import OWLXMLDocumentFormat
+from org.semanticweb.owlapi.formats import RDFXMLDocumentFormat
 from java.util import HashSet
 
 
@@ -99,7 +99,7 @@ amount of axioms removed from the ontology.
         
     
     outfile_name = os.path.abspath(outfile_name)
-    manager.saveOntology(ontology, OWLXMLDocumentFormat(), IRI.create("file:" + outfile_name))
+    manager.saveOntology(ontology, RDFXMLDocumentFormat(), IRI.create("file:" + outfile_name))
     
     
     print(f"Done. Wrote to {outfile_name}")

@@ -44,9 +44,9 @@ class ProjectionModule(nn.Module):
         self.triples_factory = triples_factory
         self.embedding_dim = embedding_dim
         self.random_seed = random_seed
-        self.kg_module =  TransE(triples_factory=self.triples_factory,
+        self.kg_module =  TransD(triples_factory=self.triples_factory,
                                  embedding_dim=self.embedding_dim,
-                                 scoring_fct_norm=2, #self.p_norm, # Trans[E,R]
+                                 #scoring_fct_norm=2, #self.p_norm, # Trans[E,R]
                                  random_seed = self.random_seed)
                         
     def forward(self, data, mode="kg"):
@@ -524,17 +524,19 @@ class Model():
         mrr = 0
 
         test_set = dict()
+        all_classes = th.tensor(list(self.ontology_classes_idxs), dtype=th.long, device=self.device)
         print("Getting filtering data...")
         for heads, rels, tails in tqdm(test_subsumption_dl):
             for i, head in enumerate(heads):
-                h = head.item()
+                h = th.where(all_classes == head)[0].item()
                 r = rels[i].item()
-                t = tails[i].item()
+                t = th.where(all_classes == tails[i])[0].item()
+                
                 if (h,r) not in test_set:
                     test_set[(h,r)] = set()
                 test_set[(h,r)].add(t)
         
-        all_classes = th.tensor(list(self.ontology_classes_idxs), dtype=th.long, device=self.device)
+        
         print("Testing...")
         with th.no_grad():
             for heads, rels, tails in tqdm(test_subsumption_dl):
@@ -568,10 +570,8 @@ class Model():
                     for cand_tail in list(test_set[(head_id, rel_id)]):
                         if cand_tail == tails[i].item():
                             continue
-                        cand_tail_id = th.where(all_classes==cand_tail)[0].item()
-                        logits[i, cand_tail_id] = -1e9
-                        
-                
+                        logits[i, cand_tail] = -1e9
+
                 orderings = th.argsort(logits, dim=1, descending=True)
 
                 all_classes_repeated = all_classes.repeat(len(tails),1)
