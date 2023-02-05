@@ -26,8 +26,9 @@ from src.utils import seed_everything
 @ck.option('--test_file', '-tf', required=True, type=ck.Path(exists=True))
 @ck.option('--device', '-d', required=True, type=ck.Choice(['cpu', 'cuda']))
 @ck.option('--seed', '-s', required=True, type=int, default=42)
+@ck.option("--only_test", '-ot', is_flag=True)
 @ck.option('--result-dir', '-rd', required=True)
-def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batch_size, lr, test_batch_size, num_negs, epochs, reduced_subsumption, reduced_existential, test_file, device, seed, result_dir):
+def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batch_size, lr, test_batch_size, num_negs, epochs, reduced_subsumption, reduced_existential, test_file, device, seed, only_test, result_dir):
 
     if not result_dir.endswith('.csv'):
         raise ValueError("For convenience, please specify a csv file as result_dir")
@@ -71,7 +72,8 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
                   device = device,
                   seed = seed)
 
-    model.train()
+    if not only_test:
+        model.train()
     mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test()
     with open(result_dir, "a") as f:
         line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
