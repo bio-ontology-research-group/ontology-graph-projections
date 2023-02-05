@@ -69,12 +69,19 @@ class Model():
                  test_batch_size = 8,
                  num_negs = 1,
                  epochs = 10,
+                 test_subsumption = False,
+                 test_existential = False,
                  reduced_subsumption = False,
                  reduced_existential = False,
                  test_file=None,
                  device = "cpu",
                  seed = 42
                  ):
+
+        if not test_subsumption and not test_existential:
+            raise ValueError("At least one of test_subsumption or test_existential must be True")
+        if test_subsumption and test_existential:
+            raise ValueError("Only one of test_subsumption or test_existential can be True")
         
         self.use_case = use_case
         self.graph_type = graph_type
@@ -88,6 +95,8 @@ class Model():
         self.test_batch_size = test_batch_size
         self.num_negs = num_negs
         self.epochs = epochs
+        self.test_subsumption = test_subsumption
+        self.test_existential = test_existential
         self.reduced_subsumption = reduced_subsumption
         self.reduced_existential = reduced_existential
         self.test_file = test_file
@@ -187,12 +196,19 @@ class Model():
             return self._graph_path
 
         graph_name = prefix[self.use_case]
-        if self.reduced_subsumption and not self.reduced_existential:
-            graph_name += "_90_100"
-        elif self.reduced_existential and not self.reduced_subsumption:
-            graph_name += "_100_90"
-        elif self.reduced_existential and self.reduced_subsumption:
-            graph_name += "_90_90"
+
+        if self.test_subsumption:
+            if self.reduced_subsumption:
+                graph_name += "_90_100"
+            if self.reduced_existential:
+                graph_name += "_100_90"
+        elif self.test_existential:
+            if self.reduced_existential:
+                graph_name += "_100_90"
+            if self.reduced_subsumption:
+                graph_name += "_90_100"
+        else:
+            raise ValueError("At least one of test_subsumption or test_existential must be True")
         
         graph_path = os.path.join(self.root, f"{graph_name}.{suffix[self.graph_type]}")
         assert os.path.exists(graph_path), f"Graph file {graph_path} does not exist"
