@@ -318,15 +318,28 @@ class Model():
 
     def create_subsumption_dataloader(self, tuples_path, batch_size):
         tuples = pd.read_csv(tuples_path, sep=",", header=None)
-        tuples.columns = ["head", "tail"]
+        num_cols = tuples.shape[1]
+        if num_cols == 2:
+            tuples.columns = ["head", "tail"]
+        elif num_cols == 3:
+            tuples.columns = ["head", "relation", "tail"]
+        else:
+            raise ValueError(f"Invalid number of columns in {tuples_path}")
+
         heads = [self.class_to_id[h] for h in tuples["head"]]
         tails = [self.class_to_id[t] for t in tuples["tail"]]
-        
-        heads = th.tensor(heads, dtype=th.long)
-        rel_idx = self.relation_to_id[rel_name[self.graph_type]]
-        rels = rel_idx * th.ones_like(heads)
-        tails = th.tensor(tails, dtype=th.long)
 
+        heads = th.tensor(heads, dtype=th.long)
+        tails = th.tensor(tails, dtype=th.long)
+        
+        if num_cols == 2:
+            rel_idx = self.relation_to_id[rel_name[self.graph_type]]
+            rels = rel_idx * th.ones_like(heads)
+        else:
+            print(self.relation_to_id)
+            rels = [self.relation_to_id[r] for r in tuples["relation"]]
+            rels = th.tensor(rels, dtype=th.long)
+        
         dataloader = FastTensorDataLoader(heads, rels, tails, batch_size=batch_size, shuffle=True)
         return dataloader
 
@@ -552,15 +565,15 @@ class Model():
                 #assert (heads[:num_ontology_classes] == aux[0]).all(), f"{heads[:num_ontology_classes]}, {aux[0]}"
 
                 rels = rels.to(self.device)
-                rels = rels.repeat(num_ontology_classes,1).T
-                rels = rels.reshape(-1)
+                rels_rep = rels.repeat(num_ontology_classes,1).T
+                rels_rep = rels_rep.reshape(-1)
                                                 
                 eval_tails = self.ontology_classes_idxs.repeat(num_heads)
                 #assert (eval_tails[:num_ontology_classes] == all_classes).all(), f"{eval_tails[:num_ontology_classes]}, {self.ontology_classes}"
                 
-                #assert heads.shape == eval_tails.shape == rels.shape, f"{heads.shape} {eval_tails.shape} {rels.shape}"
+                #assert heads.shape == eval_tails.shape == rels_rep.shape, f"{heads.shape} {eval_tails.shape} {rels_rep.shape}"
                  
-                data = (heads, rels, eval_tails)
+                data = (heads, rels_rep, eval_tails)
                 logits = self.model.forward(data, mode="kg")
                 logits = logits.reshape(num_heads, num_ontology_classes)
                 tails = tails.to(self.device)
