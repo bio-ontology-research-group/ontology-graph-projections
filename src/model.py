@@ -568,7 +568,8 @@ class Model():
                     head_id = th.where(all_classes==head)[0].item()
                     rel_id = rels[i].item()
                     for cand_tail in list(test_set[(head_id, rel_id)]):
-                        if cand_tail == tails[i].item():
+                        tail_id = th.where(all_classes==tails[i])[0].item()
+                        if cand_tail == tail_id:
                             continue
                         logits[i, cand_tail] = -1e9
 
