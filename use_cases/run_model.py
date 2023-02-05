@@ -21,6 +21,8 @@ from src.utils import seed_everything
 @ck.option('--test-batch-size', '-tbs', required=True, type=int, default=32)
 @ck.option('--num-negs', '-negs', required=True, type=int, default=2)
 @ck.option('--epochs', '-e', required=True, type=int, default=300)
+@ck.option('--test-subsumption', '-ts', is_flag=True)
+@ck.option('--test-existential', '-te', is_flag=True)
 @ck.option('--reduced_subsumption', '-rs', is_flag=True)
 @ck.option('--reduced_existential', '-re', is_flag=True)
 @ck.option('--test_file', '-tf', required=True, type=ck.Path(exists=True))
@@ -28,7 +30,9 @@ from src.utils import seed_everything
 @ck.option('--seed', '-s', required=True, type=int, default=42)
 @ck.option("--only_test", '-ot', is_flag=True)
 @ck.option('--result-dir', '-rd', required=True)
-def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batch_size, lr, test_batch_size, num_negs, epochs, reduced_subsumption, reduced_existential, test_file, device, seed, only_test, result_dir):
+def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batch_size, lr, test_batch_size, num_negs, epochs,
+         test_subsumption, test_existential,
+         reduced_subsumption, reduced_existential, test_file, device, seed, only_test, result_dir):
 
     if not result_dir.endswith('.csv'):
         raise ValueError("For convenience, please specify a csv file as result_dir")
@@ -46,6 +50,8 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
     print("\ttest_batch_size: ", test_batch_size)
     print("\tnum_negs: ", num_negs)
     print("\tepochs: ", epochs)
+    print("\ttest_subsumption: ", test_subsumption)
+    print("\ttest_existential: ", test_existential)
     print("\treduced_subsumption: ", reduced_subsumption)
     print("\treduced_existential: ", reduced_existential)
     print("\ttest_file: ", test_file)
@@ -69,6 +75,8 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
                   reduced_existential = reduced_existential,
                   test_file = test_file,
                   epochs = epochs,
+                  test_subsumption = test_subsumption,
+                  test_existential = test_existential,
                   device = device,
                   seed = seed)
 
