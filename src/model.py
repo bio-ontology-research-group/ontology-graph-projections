@@ -19,6 +19,7 @@ from mowl.owlapi.defaults import BOT, TOP
 prefix = {
     "go": "go",
     "hpo": "hp",
+    "foodon": "foodon"
     
 }
 suffix = {
