@@ -4,12 +4,12 @@ sys.path.append('../')
 import mowl
 mowl.init_jvm("10g")
 import click as ck
-
+import os
 from src.model import Model
 from src.utils import seed_everything
 
 @ck.command()
-@ck.option('--use-case', '-case', required=True, type=ck.Choice(["go", "hpo"]))
+@ck.option('--use-case', '-case', required=True, type=ck.Choice(["foodon", "go", "hpo"]))
 @ck.option('--graph-type', '-g', required=True, type=ck.Choice(['rdf', "owl2vec", "taxonomy", "dl2vec", 'onto2graph']))
 @ck.option('--root', '-r', required=True, type=ck.Path(exists=True))
 @ck.option('--emb-dim', '-dim', required=True, type=int, default=256)
@@ -25,14 +25,15 @@ from src.utils import seed_everything
 @ck.option('--test-existential', '-te', is_flag=True)
 @ck.option('--reduced_subsumption', '-rs', is_flag=True)
 @ck.option('--reduced_existential', '-re', is_flag=True)
-@ck.option('--test_file', '-tf', required=True, type=ck.Path(exists=True))
+@ck.option('--test_file', '-tf')
 @ck.option('--device', '-d', required=True, type=ck.Choice(['cpu', 'cuda']))
 @ck.option('--seed', '-s', required=True, type=int, default=42)
+@ck.option("--only_train", '-otr', is_flag=True)
 @ck.option("--only_test", '-ot', is_flag=True)
 @ck.option('--result-dir', '-rd', required=True)
 def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batch_size, lr, test_batch_size, num_negs, epochs,
          test_subsumption, test_existential,
-         reduced_subsumption, reduced_existential, test_file, device, seed, only_test, result_dir):
+         reduced_subsumption, reduced_existential, test_file, device, seed, only_train, only_test, result_dir):
 
     if not result_dir.endswith('.csv'):
         raise ValueError("For convenience, please specify a csv file as result_dir")
@@ -57,6 +58,8 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
     print("\ttest_file: ", test_file)
     print("\tdevice: ", device)
     print("\tseed: ", seed)
+    print("\tonly_train: ", only_train)
+    print("\tonly_test: ", only_test)
     
     seed_everything(seed)
     
@@ -83,28 +86,30 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
     if not only_test:
         model.train()
 
-    if graph_type == "rdf" and test_existential:
-        mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_rdf()
-        with open(result_dir, "a") as f:
-            line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
-            f.write(line)
-        #mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_filtered_rdf()
-        #result_dir = result_dir.replace(".csv", "_filtered.csv")
-        #with open(result_dir, "a") as f:
-        #    line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
-        #    f.write(line)
+    if not only_train:
+        assert os.path.exists(test_file)
+        if graph_type == "rdf" and test_existential:
+            mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_rdf()
+            with open(result_dir, "a") as f:
+                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
+                f.write(line)
+            #mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_filtered_rdf()
+            #result_dir = result_dir.replace(".csv", "_filtered.csv")
+            #with open(result_dir, "a") as f:
+            #    line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
+            #    f.write(line)
 
 
-    else:
-        mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test()
-        with open(result_dir, "a") as f:
-            line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
-            f.write(line)
-        mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_filtered()
-        result_dir = result_dir.replace(".csv", "_filtered.csv")
-        with open(result_dir, "a") as f:
-            line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
-            f.write(line)
+        else:
+            mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test()
+            with open(result_dir, "a") as f:
+                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
+                f.write(line)
+            #mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_filtered()
+            #result_dir = result_dir.replace(".csv", "_filtered.csv")
+            #with open(result_dir, "a") as f:
+            #    line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
+            #    f.write(line)
         
 if __name__ == "__main__":
     main()
