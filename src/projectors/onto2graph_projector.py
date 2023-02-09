@@ -38,7 +38,7 @@ if __name__ == '__main__':
         raise Exception('File must be an OWL file')
 
     rdfxmlfile = owlfile.replace('.owl', '.onto2graph')
-    command = ['java', '-jar', 'Onto2Graph/target/Onto2Graph-1.0.jar', '-ont', owlfile, '-out', rdfxmlfile, '-eq', "true", "-op", "[*]", '-r', 'ELK', '-f', 'RDFXML', '-t', 'false', '-nt', '8']
+    command = ['java', '-jar', 'Onto2Graph/target/Onto2Graph-1.0.jar', '-ont', owlfile, '-out', rdfxmlfile, '-eq', "true", "-op", "[*]", '-r', 'ELK', '-f', 'RDFXML', '-nt', '8']
 
     rdfxmlfile = rdfxmlfile + '.rdfxml'
     if not os.path.exists(rdfxmlfile):

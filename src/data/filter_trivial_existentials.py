@@ -1,14 +1,15 @@
 import sys
 
 bot = "http://www.w3.org/2002/07/owl#Nothing"
-
+top = "http://www.w3.org/2002/07/owl#Thing"
 def main(input_file):
     non_trivial = list()
     with open(input_file, "r") as f:
         for line in f.readlines():
+            
             if line.startswith(bot):
                 continue
-
+                            
             non_trivial.append(line)
 
     output_file = input_file.replace(".csv", "_non_trivial.csv")
