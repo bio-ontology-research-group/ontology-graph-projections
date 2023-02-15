@@ -33,17 +33,25 @@ def owl2rdf(owlfile):
 
 if __name__ == '__main__':
     owlfile = sys.argv[1]
-
+    dummy = sys.argv[2]
+    
     if not owlfile.endswith('.owl'):
         raise Exception('File must be an OWL file')
 
     rdfxmlfile = owlfile.replace('.owl', '.onto2graph')
-    command = ['java', '-jar', 'Onto2Graph/target/Onto2Graph-1.0.jar', '-ont', owlfile, '-out', rdfxmlfile, '-eq', "true", "-op", "[*]", '-r', 'ELK', '-f', 'RDFXML', '-nt', '8']
 
+    if dummy == "True":
+        print("Dummy mode")
+        command = ['java', '-jar', 'Onto2Graph/target/Onto2Graph-1.0.jar', '-ont', owlfile, '-out', rdfxmlfile, "-r", "STRUCTURAL", '-f', 'RDFXML', '-nt', '8']
+    else:
+        command = ['java', '-jar', 'Onto2Graph/target/Onto2Graph-1.0.jar', '-ont', owlfile, '-out', rdfxmlfile, '-eq', "true", "-op", "[*]", '-r', 'ELK', '-f', 'RDFXML', '-nt', '8']
+    
     rdfxmlfile = rdfxmlfile + '.rdfxml'
-    if not os.path.exists(rdfxmlfile):
-        result = subprocess.run(command, stdout=subprocess.PIPE)
-        print(result.stdout.decode('utf-8'))
 
+    print("Running Onto2Graph")
+    result = subprocess.run(command, stdout=subprocess.PIPE)
+    print(result.stdout.decode('utf-8'))
+    print("Onto2Graph finished")
+    print("Converting to edgelist")
     owl2rdf(rdfxmlfile)
     
