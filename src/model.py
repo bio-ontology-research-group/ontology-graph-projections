@@ -20,8 +20,8 @@ prefix = {
     "go": "go",
     "hpo": "hp",
     "foodon": "foodon",
-    "go_link_pred": "go.train"
-    
+    "go_link_pred": "go.train",
+    "foodon_link_pred": "foodon-merged.train"
 }
 suffix = {
     "taxonomy": "taxonomy.edgelist",
