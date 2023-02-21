@@ -528,6 +528,84 @@ class Model():
         hits_at_100 /= test_subsumption_dl.dataset_len
         return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
 
+    def test_with_both_quantifiers(self):
+
+        print(f"Loading best model from {self.model_path}")
+        print("\nTesting")
+        self.model.load_state_dict(th.load(self.model_path))
+        self.model = self.model.to(self.device)
+
+        test_subsumption_dl = self.create_existential_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+            
+        self.model.eval()
+                                                
+        num_ontology_classes = len(self.ontology_classes_idxs)
+
+        print("Number of classes:", num_ontology_classes)
+
+        hits_at_1 = 0
+        hits_at_10 = 0
+        hits_at_100 = 0
+        
+        mean_rank = 0
+        mrr = 0
+
+        all_classes = th.tensor(list(self.ontology_classes_idxs), dtype=th.long, device=self.device)
+        with th.no_grad():
+            for heads, rels, tails in tqdm(test_subsumption_dl):
+                                                    
+                aux = heads.to(self.device)
+                num_heads = len(heads)
+                
+                heads = heads.to(self.device)
+                heads = heads.repeat(num_ontology_classes,1).T
+
+                #assert (heads[0,:] == aux[0]).all(), f"{heads[0,:]}, {aux[0]}"
+                heads = heads.reshape(-1)
+                #assert (heads[:num_ontology_classes] == aux[0]).all(), f"{heads[:num_ontology_classes]}, {aux[0]}"
+
+                rels = rels.to(self.device)
+                rels = rels.repeat(num_ontology_classes,1).T
+                rels = rels.reshape(-1)
+                                                
+                eval_tails = self.ontology_classes_idxs.repeat(num_heads)
+                #assert (eval_tails[:num_ontology_classes] == all_classes).all(), f"{eval_tails[:num_ontology_classes]}, {self.ontology_classes}"
+                
+                #assert heads.shape == eval_tails.shape == rels.shape, f"{heads.shape} {eval_tails.shape} {rels.shape}"
+                 
+                data = (heads, rels, eval_tails)
+                logits = self.model.forward(data, mode="kg")
+                logits = logits.reshape(num_heads, num_ontology_classes)
+
+                #double the tensor to add universal quantifier
+                logits = th.cat((logits, logits), dim=1)
+
+                orderings = th.argsort(logits, dim=1, descending=True)
+
+                all_classes_repeated = all_classes.repeat(len(tails),1)
+                tail_ids = th.nonzero(all_classes_repeated == tails.to(self.device).unsqueeze(1), as_tuple=False)[:,1]
+                                                                            
+                ranks = th.nonzero(orderings == tail_ids.unsqueeze(1), as_tuple=False)[:,1]
+
+                for rank in ranks:
+                    rank = rank.item()
+                    mean_rank += rank
+                    mrr += (1/(rank+1))
+                    if rank == 0:
+                        hits_at_1 += 1
+                    if rank < 10:
+                        hits_at_10 += 1
+                    if rank < 100:
+                        hits_at_100 += 1
+                                            
+                        
+        mean_rank /= test_subsumption_dl.dataset_len
+        mrr /= test_subsumption_dl.dataset_len
+        hits_at_1 /= test_subsumption_dl.dataset_len
+        hits_at_10 /= test_subsumption_dl.dataset_len
+        hits_at_100 /= test_subsumption_dl.dataset_len
+        return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
+
 
     def test_filtered(self, mode="subsumption"):
 
@@ -698,6 +776,104 @@ class Model():
                 logits2 = logits2.reshape(num_heads, num_ontology_classes)
 
                 logits = logits1 + logits2
+                
+                orderings = th.argsort(logits, dim=1, descending=True)
+
+                all_classes_repeated = all_classes.repeat(len(tails),1)
+                tail_ids = th.nonzero(all_classes_repeated == tails.to(self.device).unsqueeze(1), as_tuple=False)[:,1]
+                                                                            
+                ranks = th.nonzero(orderings == tail_ids.unsqueeze(1), as_tuple=False)[:,1]
+
+                for rank in ranks:
+                    rank = rank.item()
+                    mean_rank += rank
+                    mrr += (1/(rank+1))
+                    if rank == 0:
+                        hits_at_1 += 1
+                    if rank < 10:
+                        hits_at_10 += 1
+                    if rank < 100:
+                        hits_at_100 += 1
+                                            
+                        
+        mean_rank /= test_subsumption_dl.dataset_len
+        mrr /= test_subsumption_dl.dataset_len
+        hits_at_1 /= test_subsumption_dl.dataset_len
+        hits_at_10 /= test_subsumption_dl.dataset_len
+        hits_at_100 /= test_subsumption_dl.dataset_len
+        return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
+
+    def test_rdf_with_both_quantifiers(self):
+
+        print(f"Loading best model from {self.model_path}")
+        print("\nTesting")
+        self.model.load_state_dict(th.load(self.model_path))
+        self.model = self.model.to(self.device)
+
+        test_subsumption_dl = self.create_existential_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+            
+        self.model.eval()
+                                                
+        num_ontology_classes = len(self.ontology_classes_idxs)
+
+        print("Number of classes:", num_ontology_classes)
+
+        hits_at_1 = 0
+        hits_at_10 = 0
+        hits_at_100 = 0
+        
+        mean_rank = 0
+        mrr = 0
+
+        all_classes = th.tensor(list(self.ontology_classes_idxs), dtype=th.long, device=self.device)
+        with th.no_grad():
+            for heads, rels, tails in tqdm(test_subsumption_dl):
+                                                    
+                aux = heads.to(self.device)
+                num_heads = len(heads)
+                
+                heads = heads.to(self.device)
+                heads = heads.repeat(num_ontology_classes,1).T
+
+                #assert (heads[0,:] == aux[0]).all(), f"{heads[0,:]}, {aux[0]}"
+                heads = heads.reshape(-1)
+                #assert (heads[:num_ontology_classes] == aux[0]).all(), f"{heads[:num_ontology_classes]}, {aux[0]}"
+
+                rels = rels.to(self.device)
+                rels = rels.repeat(num_ontology_classes,1).T
+                rels = rels.reshape(-1)
+                                                
+                eval_tails = self.ontology_classes_idxs.repeat(num_heads)
+                #assert (eval_tails[:num_ontology_classes] == all_classes).all(), f"{eval_tails[:num_ontology_classes]}, {self.ontology_classes}"
+                
+                #assert heads.shape == eval_tails.shape == rels.shape, f"{heads.shape} {eval_tails.shape} {rels.shape}"
+
+                somevaluesfrom_relation_id = self.relation_to_id['http://www.w3.org/2002/07/owl#someValuesFrom']
+                allvaluesfrom_relation_id = self.relation_to_id['http://www.w3.org/2002/07/owl#allValuesFrom']
+                somevaluesfrom = somevaluesfrom_relation_id * th.ones_like(rels)
+                allvaluesfrom = allvaluesfrom_relation_id * th.ones_like(rels)
+                
+                data1 = (heads, somevaluesfrom, eval_tails)
+                logits1 = self.model.forward(data1, mode="kg")
+                logits1 = logits1.reshape(num_heads, num_ontology_classes)
+
+                data2 = (rels, somevaluesfrom, eval_tails)
+                logits2 = self.model.forward(data2, mode="kg")
+                logits2 = logits2.reshape(num_heads, num_ontology_classes)
+
+                logits_ex = logits1 + logits2
+
+                data1 = (heads, allvaluesfrom, eval_tails)
+                logits1 = self.model.forward(data1, mode="kg")
+                logits1 = logits1.reshape(num_heads, num_ontology_classes)
+
+                data2 = (rels, allvaluesfrom, eval_tails)
+                logits2 = self.model.forward(data2, mode="kg")
+                logits2 = logits2.reshape(num_heads, num_ontology_classes)
+
+                logits_al = logits1 + logits2
+
+                logits = th.cat((logits_ex, logits_al), dim=1)
                 
                 orderings = th.argsort(logits, dim=1, descending=True)
 

@@ -25,7 +25,7 @@ from src.utils import seed_everything
 @ck.option('--test-existential', '-te', is_flag=True)
 @ck.option('--reduced_subsumption', '-rs', is_flag=True)
 @ck.option('--reduced_existential', '-re', is_flag=True)
-@ck.option('--test_file', '-tf')
+@ck.option('--test_file', '-tf', required=True, type=ck.Path(exists=True))
 @ck.option('--device', '-d', required=True, type=ck.Choice(['cpu', 'cuda']))
 @ck.option('--seed', '-s', required=True, type=int, default=42)
 @ck.option("--only_train", '-otr', is_flag=True)
@@ -89,6 +89,11 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
     if not only_train:
         assert os.path.exists(test_file)
         if graph_type == "rdf" and test_existential:
+            mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_rdf_with_both_quantifiers()
+            result_dir_ = result_dir.replace(".csv", "both.csv")
+            with open(result_dir_, 'a') as f:
+                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
+                f.write(line)
             mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_rdf()
             with open(result_dir, "a") as f:
                 line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
@@ -101,6 +106,14 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
 
 
         else:
+            
+            if test_existential:
+                mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_with_both_quantifiers()
+                result_dir_ = result_dir.replace(".csv", "both.csv")
+                with open(result_dir_, 'a') as f:
+                    line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
+                    f.write(line)
+                    
             mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test()
             with open(result_dir, "a") as f:
                 line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
