@@ -39,7 +39,7 @@ amount of axioms removed from the ontology.
     if existential:
         existential_remain = remain_prc
 
-    outfile_name = os.path.splitext(input_ontology)[0] + f"_{subclass_remain}_{existential_remain}.owl2"
+    outfile_name = os.path.splitext(input_ontology)[0] + f"_{subclass_remain}_{existential_remain}.owl"
 
     tbox_axioms = ontology.getTBoxAxioms(Imports.fromBoolean(True))
 

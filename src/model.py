@@ -364,21 +364,21 @@ class Model():
         dataloader = FastTensorDataLoader(heads, rels, tails, batch_size=batch_size, shuffle=True)
         return dataloader
 
-    def create_existential_dataloader(self, tuples_path, batch_size):
-        tuples = pd.read_csv(tuples_path, sep=",", header=None)
+    # def create_existential_dataloader(self, tuples_path, batch_size):
+    #     tuples = pd.read_csv(tuples_path, sep=",", header=None)
  
-        tuples.columns = ["head", "relation", "tail"]
+    #     tuples.columns = ["head", "relation", "tail"]
                         
-        heads = [self.class_to_id[h] for h in tuples["head"]]
-        rels = [self.relation_to_id[r] for r in tuples["relation"]]
-        tails = [self.class_to_id[t] for t in tuples["tail"]]
+    #     heads = [self.class_to_id[h] for h in tuples["head"]]
+    #     rels = [self.relation_to_id[r] for r in tuples["relation"]]
+    #     tails = [self.class_to_id[t] for t in tuples["tail"]]
         
-        heads = th.tensor(heads, dtype=th.long)
-        rels = th.tensor(rels, dtype=th.long)
-        tails = th.tensor(tails, dtype=th.long)
+    #     heads = th.tensor(heads, dtype=th.long)
+    #     rels = th.tensor(rels, dtype=th.long)
+    #     tails = th.tensor(tails, dtype=th.long)
 
-        dataloader = FastTensorDataLoader(heads, rels, tails, batch_size=batch_size, shuffle=True)
-        return dataloader
+    #     dataloader = FastTensorDataLoader(heads, rels, tails, batch_size=batch_size, shuffle=True)
+    #     return dataloader
 
                                                                                                             
     def train(self):
@@ -447,20 +447,20 @@ class Model():
             print(f"Train loss: {graph_loss:.6f}\n")
                 
 
-    def test(self, mode="subsumption"):
+    def test(self):
 
-        if not mode in ["subsumption", "existential"]:
-            raise ValueError("Mode must be either subsumption or existential")
+        #if not mode in ["subsumption", "existential"]:
+        #    raise ValueError("Mode must be either subsumption or existential")
         
         print(f"Loading best model from {self.model_path}")
         print("\nTesting")
         self.model.load_state_dict(th.load(self.model_path))
         self.model = self.model.to(self.device)
 
-        if mode == "subsumption":
-            test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
-        elif mode == "existential":
-            test_subsumption_dl = self.create_existential_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+        #if mode == "subsumption":
+        test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+        #elif mode == "existential":
+        #    test_subsumption_dl = self.create_existential_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
             
         self.model.eval()
                                                 
@@ -531,11 +531,11 @@ class Model():
     def test_with_both_quantifiers(self):
 
         print(f"Loading best model from {self.model_path}")
-        print("\nTesting")
+        print("\nTesting with both quantifiers")
         self.model.load_state_dict(th.load(self.model_path))
         self.model = self.model.to(self.device)
 
-        test_subsumption_dl = self.create_existential_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+        test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
             
         self.model.eval()
                                                 
@@ -607,21 +607,16 @@ class Model():
         return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
 
 
-    def test_filtered(self, mode="subsumption"):
+    def test_filtered(self):
 
-        if not mode in ["subsumption", "existential"]:
-            raise ValueError("Mode must be either subsumption or existential")
-        
         print(f"Loading best model from {self.model_path}")
         print("\nTesting")
         self.model.load_state_dict(th.load(self.model_path))
         self.model = self.model.to(self.device)
 
-        if mode == "subsumption":
-            test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
-        elif mode == "existential":
-            test_subsumption_dl = self.create_existential_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
-            
+
+        test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+                    
         self.model.eval()
                                                 
         num_ontology_classes = len(self.ontology_classes_idxs)
@@ -713,21 +708,15 @@ class Model():
 
 
 
-    def test_rdf(self, mode="subsumption"):
-
-        if not mode in ["subsumption", "existential"]:
-            raise ValueError("Mode must be either subsumption or existential")
+    def test_rdf(self):
         
         print(f"Loading best model from {self.model_path}")
         print("\nTesting")
         self.model.load_state_dict(th.load(self.model_path))
         self.model = self.model.to(self.device)
 
-        if mode == "subsumption":
-            test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
-        elif mode == "existential":
-            test_subsumption_dl = self.create_existential_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
-            
+        test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+                    
         self.model.eval()
                                                 
         num_ontology_classes = len(self.ontology_classes_idxs)
@@ -806,11 +795,11 @@ class Model():
     def test_rdf_with_both_quantifiers(self):
 
         print(f"Loading best model from {self.model_path}")
-        print("\nTesting")
+        print("\nTesting RDF with both quantifiers")
         self.model.load_state_dict(th.load(self.model_path))
         self.model = self.model.to(self.device)
 
-        test_subsumption_dl = self.create_existential_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+        test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
             
         self.model.eval()
                                                 
@@ -902,21 +891,15 @@ class Model():
         return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
 
 
-    def test_filtered_rdf(self, mode="subsumption"):
-
-        if not mode in ["subsumption", "existential"]:
-            raise ValueError("Mode must be either subsumption or existential")
+    def test_filtered_rdf(self):
         
         print(f"Loading best model from {self.model_path}")
         print("\nTesting")
         self.model.load_state_dict(th.load(self.model_path))
         self.model = self.model.to(self.device)
 
-        if mode == "subsumption":
-            test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
-        elif mode == "existential":
-            test_subsumption_dl = self.create_existential_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
-            
+        test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+                    
         self.model.eval()
                                                 
         num_ontology_classes = len(self.ontology_classes_idxs)

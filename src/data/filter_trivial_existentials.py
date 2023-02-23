@@ -6,8 +6,10 @@ def main(input_file):
     non_trivial = list()
     with open(input_file, "r") as f:
         for line in f.readlines():
-            
-            if line.startswith(bot):
+            stripped = line.rstrip("\n")
+            if stripped.startswith(bot):
+                continue
+            if stripped.endswith(top):
                 continue
                             
             non_trivial.append(line)
