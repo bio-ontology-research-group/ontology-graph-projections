@@ -104,7 +104,6 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
             #    line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
             #    f.write(line)
 
-
         else:
             
             if test_existential:

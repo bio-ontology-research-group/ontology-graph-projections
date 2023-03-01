@@ -1,0 +1,16 @@
+name: projections
+channels:
+  - conda-forge
+  - anaconda
+dependencies:
+  - click
+  - mowl-borg==0.1.1
+  - openjdk==8.0.152
+  - pandas==1.5.2
+  - pip
+  - pykeen==1.9.0
+  - python==3.8.0
+  - pytorch==1.13.1
+  - rdflib==6.2.0
+  - tqdm
+  - wget
