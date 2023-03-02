@@ -39,7 +39,7 @@ class TestProjectors(TestCase):
     def test_onto2graph_projector(self):
         """This tests the onto2graph projector"""
 
-        onto2graph_projector('pizza.owl')
+        onto2graph_projector('pizza.owl', "src/projectors/")
         self.assertTrue(os.path.exists('pizza.onto2graph.edgelist'))
 
     def test_rdf2vec_projector(self):

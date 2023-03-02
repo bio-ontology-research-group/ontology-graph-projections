@@ -9,7 +9,7 @@ import tqdm
 import rdflib
 import os
 
-jar_dir = "src/projectors/"
+
 def owl2rdf(owlfile):
     start_time = time.time()
     
@@ -28,7 +28,7 @@ def owl2rdf(owlfile):
     print("--- %s seconds ---" % (time.time() - start_time))
 
 
-def onto2graph_projector(input_ontology, jar_dir = ""):
+def onto2graph_projector(input_ontology, jar_dir):
     owlfile = os.path.abspath(input_ontology)
     
     if not owlfile.endswith('.owl'):
@@ -51,9 +51,10 @@ def onto2graph_projector(input_ontology, jar_dir = ""):
 
 @ck.command()
 @ck.option("--input_ontology", "-i", type=ck.Path(exists=True), required=True)
-def main(input_ontology):
+@ck.option("--jar_dir", "-j", type=ck.Path(exists=True), required=True)
+def main(input_ontology, jar_dir):
     
-    onto2graph_projector(input_ontology)
+    onto2graph_projector(input_ontology,jar_dir)
     print("Done")
 
 if __name__ == '__main__':
