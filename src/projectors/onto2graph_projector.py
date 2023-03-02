@@ -1,10 +1,15 @@
-import rdflib
-import time
-import sys
-import tqdm
+import mowl
+mowl.init_jvm("10g")
+
 import subprocess
 import os
+import click as ck
+import time
+import tqdm
+import rdflib
+import os
 
+jar_dir = "src/projectors/"
 def owl2rdf(owlfile):
     start_time = time.time()
     
@@ -17,34 +22,22 @@ def owl2rdf(owlfile):
                 continue
             if isinstance(o, rdflib.term.Literal):
                 continue
-            #if " " in s or " " in o:
-            #    continue
-            #if "http://langual" in s or "http://langual" in o:
-            #    continue
-            #if "oboInOwl" in p or "annotated" in p or "label" in p:
-            #    continue
-            #if not s.startswith("http") and not len(s) > 20:
-            #    continue
-            #if not o.startswith("http") and not len(o) > 20:
-            #    continue
+                                                 
             f.write(str(s) + '\t' + str(p) + '\t' + str(o) + '\n')
 
     print("--- %s seconds ---" % (time.time() - start_time))
 
-if __name__ == '__main__':
-    owlfile = sys.argv[1]
-    dummy = sys.argv[2]
+
+def onto2graph_projector(input_ontology, jar_dir = ""):
+    owlfile = os.path.abspath(input_ontology)
     
     if not owlfile.endswith('.owl'):
         raise Exception('File must be an OWL file')
 
     rdfxmlfile = owlfile.replace('.owl', '.onto2graph')
 
-    if dummy == "True":
-        print("Dummy mode")
-        command = ['java', '-jar', 'Onto2Graph/target/Onto2Graph-1.0.jar', '-ont', owlfile, '-out', rdfxmlfile, "-r", "STRUCTURAL", '-f', 'RDFXML', '-nt', '8']
-    else:
-        command = ['java', '-jar', 'Onto2Graph/target/Onto2Graph-1.0.jar', '-ont', owlfile, '-out', rdfxmlfile, '-eq', "true", "-op", "[*]", '-r', 'ELK', '-f', 'RDFXML', '-nt', '8']
+    jarfile = os.path.abspath(jar_dir + 'Onto2Graph/target/Onto2Graph-1.0.jar')
+    command = ['java', '-jar', jarfile, '-ont', owlfile, '-out', rdfxmlfile, '-eq', "true", "-op", "[*]", '-r', 'ELK', '-f', 'RDFXML', '-nt', '8']
     
     rdfxmlfile = rdfxmlfile + '.rdfxml'
 
@@ -55,3 +48,15 @@ if __name__ == '__main__':
     print("Converting to edgelist")
     owl2rdf(rdfxmlfile)
     
+
+@ck.command()
+@ck.option("--input_ontology", "-i", type=ck.Path(exists=True), required=True)
+def main(input_ontology):
+    
+    onto2graph_projector(input_ontology)
+    print("Done")
+
+if __name__ == '__main__':
+    
+    
+    main()

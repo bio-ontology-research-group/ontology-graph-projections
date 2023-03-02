@@ -37,7 +37,17 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
 
     if not result_dir.endswith('.csv'):
         raise ValueError("For convenience, please specify a csv file as result_dir")
-    
+
+    if root.endswith('/'):
+        root = root[:-1]
+
+    #get parent of root
+    root_parent = os.path.dirname(root)
+        
+    models_dir = os.path.join(root_parent, 'models')
+    if not os.path.exists(models_dir):
+        os.mkdir(models_dir)
+        
     print("Configuration:")
     print("\tuse_case: ", use_case)
     print("\tgraph_type: ", graph_type)
@@ -87,41 +97,44 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
         model.train()
 
     if not only_train:
+        result_dir_filtered = result_dir.replace('.csv', '_filtered.csv')
         assert os.path.exists(test_file)
-        if graph_type == "rdf" and test_existential:
-            mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_rdf_with_both_quantifiers()
-            result_dir_ = result_dir.replace(".csv", "both.csv")
-            with open(result_dir_, 'a') as f:
-                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
-                f.write(line)
-            mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_rdf()
-            with open(result_dir, "a") as f:
-                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
-                f.write(line)
-            #mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_filtered_rdf()
-            #result_dir = result_dir.replace(".csv", "_filtered.csv")
-            #with open(result_dir, "a") as f:
-            #    line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
-            #    f.write(line)
 
-        else:
-            
-            if test_existential:
-                mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_with_both_quantifiers()
-                result_dir_ = result_dir.replace(".csv", "both.csv")
-                with open(result_dir_, 'a') as f:
-                    line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
-                    f.write(line)
-                    
-            mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test()
-            with open(result_dir, "a") as f:
-                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
+        if test_subsumption:
+            raw_metrics, filtered_metrics = model.test(False, False)
+            mr, mrr, h1, h10, h100 = raw_metrics
+            mr_f, mrr_f, h1_f, h10_f, h100_f = filtered_metrics
+            with open(result_dir, 'a') as f:
+                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr},{mrr},{h1},{h10},{h100}\n"
                 f.write(line)
-            #mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100 = model.test_filtered()
-            #result_dir = result_dir.replace(".csv", "_filtered.csv")
-            #with open(result_dir, "a") as f:
-            #    line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mean_rank},{mrr},{hits_at_1},{hits_at_10},{hits_at_100}\n"
-            #    f.write(line)
+            with open(result_dir_filtered, 'a') as f:
+                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr_f},{mrr_f},{h1_f},{h10_f},{h100_f}\n"
+                f.write(line)
+
+        if test_existential:
+            raw_metrics, filtered_metrics = model.test(True, False)
+            mr, mrr, h1, h10, h100 = raw_metrics
+            mr_f, mrr_f, h1_f, h10_f, h100_f = filtered_metrics
+            with open(result_dir, 'a') as f:
+                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr},{mrr},{h1},{h10},{h100}\n"
+                f.write(line)
+            with open(result_dir_filtered, 'a') as f:
+                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr_f},{mrr_f},{h1_f},{h10_f},{h100_f}\n"
+                f.write(line)
+
+            result_dir_both_quants = result_dir.replace('.csv', '_both_quants.csv')
+            result_dir_both_quants_filtered = result_dir.replace('.csv', '_both_quants_filtered.csv')
+            raw_metrics, filtered_metrics = model.test(True, True)
+            mr, mrr, h1, h10, h100 = raw_metrics
+            mr_f, mrr_f, h1_f, h10_f, h100_f = filtered_metrics
+            with open(result_dir_both_quants, 'a') as f:
+                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr},{mrr},{h1},{h10},{h100}\n"
+                f.write(line)
+            with open(result_dir_both_quants_filtered, 'a') as f:
+                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr_f},{mrr_f},{h1_f},{h10_f},{h100_f}\n"
+                f.write(line)
+
+ 
         
 if __name__ == "__main__":
     main()

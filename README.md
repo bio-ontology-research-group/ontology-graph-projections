@@ -39,6 +39,7 @@ Provide an overview of the directory structure and files, for example:
 ### Set up environment
 
 ```bash
+git clone --recursive https://github.com/bio-ontology-research-group/ontology_projections.git
 conda env create -f environment.yml
 conda activate projections
 ```
