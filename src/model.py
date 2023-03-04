@@ -8,7 +8,6 @@ from torch.utils.data import Dataset
 import torch.optim as optim
 import torch.nn as nn
 
-#from src.OpenKE.openke.module.model import TransE
 from pykeen.models import TransE, TransR, TransD, BoxE
 from pykeen.triples import TriplesFactory
 
@@ -46,15 +45,15 @@ class ProjectionModule(nn.Module):
         self.triples_factory = triples_factory
         self.embedding_dim = embedding_dim
         self.random_seed = random_seed
-        self.kg_module =  TransD(triples_factory=self.triples_factory,
+        self.kg_module =  TransE(triples_factory=self.triples_factory,
                                  embedding_dim=self.embedding_dim,
-                                 #scoring_fct_norm=2, #self.p_norm, # Trans[E,R]
+                                 scoring_fct_norm=2, #self.p_norm, # Trans[E,R]
                                  random_seed = self.random_seed)
                         
     def forward(self, data, mode="kg"):
         h, r, t = data
         x = -self.kg_module.forward(h, r, t, mode=None)
-        assert (x>=0).all()
+        
         return x
         
 class Model():
@@ -124,17 +123,10 @@ class Model():
 
         self.model = ProjectionModule(triples_factory=self.triples_factory,
                             embedding_dim=self.emb_dim,
-                            #scoring_fct_norm=self.p_norm, # Trans[E,R]
+                            scoring_fct_norm=self.p_norm, # Trans[E,R]
                             random_seed = self.seed
                             )
-        #self.model = TransE(len(self.class_to_id),
-        #                    len(self.relation_to_id),
-        #                    dim = self.emb_dim,
-        #                    p_norm = self.p_norm,
-        #                    norm_flag = True,
-        #                    margin = None,
-        #                    epsilon = None)
-
+                                                        
         assert os.path.exists(self.root), f"Root directory '{self.root}' does not exist"
 
     
@@ -284,42 +276,7 @@ class Model():
         self._ontology_classes_idxs = ontology_classes_idxs
         return self._ontology_classes_idxs
             
-    # @property
-    # def inferred_ancestors(self):
-    #     if self._inferred_ancestors is not None:
-    #         return self._inferred_ancestors
-    #     print("Loading inferred ancestors from disk...")
-    #     path = os.path.join(self.root, "inferred_ancestors.txt")
-    #     assert os.path.exists(path), f"Inferred ancestors file {path} does not exist"
-
-    #     self._inferred_ancestors = dict()
-    #     with open(path, "r") as f:
-    #         lines = f.readlines()
-    #         for line in lines:
-    #             line = line.rstrip("\n").split(",")
-    #             entity = line[0]
-    #             ancestors = line[1:]
-    #             self._inferred_ancestors[entity] = ancestors
-    #     print("Done")
-    #     return self._inferred_ancestors
-            
-    # @property
-    # def inferred_ancestors_tensor(self):
-    #     if self._inferred_ancestors_tensor is not None:
-    #         return self._inferred_ancestors_tensor
-
-    #     self._inferred_ancestors_tensor = dict()
-
-    #     for entity, ancestors in self.inferred_ancestors.items():
-    #         idxs = [self.class_to_id[x] for x in ancestors]
-    #         idxs = [th.nonzero(self.ontology_classes == x, as_tuple=False).item() for x in idxs]
-
-    #         tensor = th.ones(len(self.ontology_classes))
-    #         tensor[idxs] = 100000
-    #         self._inferred_ancestors_tensor[self.class_to_id[entity]] = tensor
-
-    #     return self._inferred_ancestors_tensor
-        
+             
     def create_graph_train_dataloader(self):
         heads = [self.class_to_id[h] for h in self.graph["head"]]
         rels = [self.relation_to_id[r] for r in self.graph["relation"]]
@@ -364,23 +321,6 @@ class Model():
         dataloader = FastTensorDataLoader(heads, rels, tails, batch_size=batch_size, shuffle=True)
         return dataloader
 
-    # def create_existential_dataloader(self, tuples_path, batch_size):
-    #     tuples = pd.read_csv(tuples_path, sep=",", header=None)
- 
-    #     tuples.columns = ["head", "relation", "tail"]
-                        
-    #     heads = [self.class_to_id[h] for h in tuples["head"]]
-    #     rels = [self.relation_to_id[r] for r in tuples["relation"]]
-    #     tails = [self.class_to_id[t] for t in tuples["tail"]]
-        
-    #     heads = th.tensor(heads, dtype=th.long)
-    #     rels = th.tensor(rels, dtype=th.long)
-    #     tails = th.tensor(tails, dtype=th.long)
-
-    #     dataloader = FastTensorDataLoader(heads, rels, tails, batch_size=batch_size, shuffle=True)
-    #     return dataloader
-
-                                                                                                            
     def train(self):
 
         optimizer = optim.Adam(self.model.parameters(), lr=0.000001, weight_decay = self.weight_decay)
@@ -447,21 +387,17 @@ class Model():
             print(f"Train loss: {graph_loss:.6f}\n")
                 
 
+
+            
     def test(self):
 
-        #if not mode in ["subsumption", "existential"]:
-        #    raise ValueError("Mode must be either subsumption or existential")
-        
         print(f"Loading best model from {self.model_path}")
         print("\nTesting")
         self.model.load_state_dict(th.load(self.model_path))
         self.model = self.model.to(self.device)
 
-        #if mode == "subsumption":
         test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
-        #elif mode == "existential":
-        #    test_subsumption_dl = self.create_existential_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
-            
+
         self.model.eval()
                                                 
         num_ontology_classes = len(self.ontology_classes_idxs)
@@ -484,20 +420,14 @@ class Model():
                 
                 heads = heads.to(self.device)
                 heads = heads.repeat(num_ontology_classes,1).T
-
-                #assert (heads[0,:] == aux[0]).all(), f"{heads[0,:]}, {aux[0]}"
                 heads = heads.reshape(-1)
-                #assert (heads[:num_ontology_classes] == aux[0]).all(), f"{heads[:num_ontology_classes]}, {aux[0]}"
-
+                
                 rels = rels.to(self.device)
                 rels = rels.repeat(num_ontology_classes,1).T
                 rels = rels.reshape(-1)
                                                 
                 eval_tails = self.ontology_classes_idxs.repeat(num_heads)
-                #assert (eval_tails[:num_ontology_classes] == all_classes).all(), f"{eval_tails[:num_ontology_classes]}, {self.ontology_classes}"
-                
-                #assert heads.shape == eval_tails.shape == rels.shape, f"{heads.shape} {eval_tails.shape} {rels.shape}"
-                 
+                                
                 data = (heads, rels, eval_tails)
                 logits = self.model.forward(data, mode="kg")
                 logits = logits.reshape(num_heads, num_ontology_classes)
@@ -559,25 +489,18 @@ class Model():
                 
                 heads = heads.to(self.device)
                 heads = heads.repeat(num_ontology_classes,1).T
-
-                #assert (heads[0,:] == aux[0]).all(), f"{heads[0,:]}, {aux[0]}"
                 heads = heads.reshape(-1)
-                #assert (heads[:num_ontology_classes] == aux[0]).all(), f"{heads[:num_ontology_classes]}, {aux[0]}"
-
+                
                 rels = rels.to(self.device)
                 rels = rels.repeat(num_ontology_classes,1).T
                 rels = rels.reshape(-1)
                                                 
                 eval_tails = self.ontology_classes_idxs.repeat(num_heads)
-                #assert (eval_tails[:num_ontology_classes] == all_classes).all(), f"{eval_tails[:num_ontology_classes]}, {self.ontology_classes}"
-                
-                #assert heads.shape == eval_tails.shape == rels.shape, f"{heads.shape} {eval_tails.shape} {rels.shape}"
-                 
+                                
                 data = (heads, rels, eval_tails)
                 logits = self.model.forward(data, mode="kg")
                 logits = logits.reshape(num_heads, num_ontology_classes)
 
-                #double the tensor to add universal quantifier
                 logits = th.cat((logits, logits), dim=1)
 
                 orderings = th.argsort(logits, dim=1, descending=True)
@@ -654,19 +577,14 @@ class Model():
                 heads = heads.to(self.device)
                 heads = heads.repeat(num_ontology_classes,1).T
 
-                #assert (heads[0,:] == aux[0]).all(), f"{heads[0,:]}, {aux[0]}"
                 heads = heads.reshape(-1)
-                #assert (heads[:num_ontology_classes] == aux[0]).all(), f"{heads[:num_ontology_classes]}, {aux[0]}"
-
+                
                 rels = rels.to(self.device)
                 rels_rep = rels.repeat(num_ontology_classes,1).T
                 rels_rep = rels_rep.reshape(-1)
                                                 
                 eval_tails = self.ontology_classes_idxs.repeat(num_heads)
-                #assert (eval_tails[:num_ontology_classes] == all_classes).all(), f"{eval_tails[:num_ontology_classes]}, {self.ontology_classes}"
-                
-                #assert heads.shape == eval_tails.shape == rels_rep.shape, f"{heads.shape} {eval_tails.shape} {rels_rep.shape}"
-                 
+                                
                 data = (heads, rels_rep, eval_tails)
                 logits = self.model.forward(data, mode="kg")
                 logits = logits.reshape(num_heads, num_ontology_classes)
@@ -740,19 +658,14 @@ class Model():
                 heads = heads.to(self.device)
                 heads = heads.repeat(num_ontology_classes,1).T
 
-                #assert (heads[0,:] == aux[0]).all(), f"{heads[0,:]}, {aux[0]}"
                 heads = heads.reshape(-1)
-                #assert (heads[:num_ontology_classes] == aux[0]).all(), f"{heads[:num_ontology_classes]}, {aux[0]}"
-
+                
                 rels = rels.to(self.device)
                 rels = rels.repeat(num_ontology_classes,1).T
                 rels = rels.reshape(-1)
                                                 
                 eval_tails = self.ontology_classes_idxs.repeat(num_heads)
-                #assert (eval_tails[:num_ontology_classes] == all_classes).all(), f"{eval_tails[:num_ontology_classes]}, {self.ontology_classes}"
-                
-                #assert heads.shape == eval_tails.shape == rels.shape, f"{heads.shape} {eval_tails.shape} {rels.shape}"
-
+                                
                 somevaluesfrom_relation_id = self.relation_to_id['http://www.w3.org/2002/07/owl#someValuesFrom']
                 somevaluesfrom = somevaluesfrom_relation_id * th.ones_like(rels)
                 
@@ -823,19 +736,14 @@ class Model():
                 
                 heads = heads.to(self.device)
                 heads = heads.repeat(num_ontology_classes,1).T
-
-                #assert (heads[0,:] == aux[0]).all(), f"{heads[0,:]}, {aux[0]}"
                 heads = heads.reshape(-1)
-                #assert (heads[:num_ontology_classes] == aux[0]).all(), f"{heads[:num_ontology_classes]}, {aux[0]}"
-
+                
                 rels = rels.to(self.device)
                 rels = rels.repeat(num_ontology_classes,1).T
                 rels = rels.reshape(-1)
                                                 
                 eval_tails = self.ontology_classes_idxs.repeat(num_heads)
-                #assert (eval_tails[:num_ontology_classes] == all_classes).all(), f"{eval_tails[:num_ontology_classes]}, {self.ontology_classes}"
-                
-                #assert heads.shape == eval_tails.shape == rels.shape, f"{heads.shape} {eval_tails.shape} {rels.shape}"
+                                
 
                 somevaluesfrom_relation_id = self.relation_to_id['http://www.w3.org/2002/07/owl#someValuesFrom']
                 allvaluesfrom_relation_id = self.relation_to_id['http://www.w3.org/2002/07/owl#allValuesFrom']
@@ -937,19 +845,14 @@ class Model():
                 heads = heads.to(self.device)
                 heads = heads.repeat(num_ontology_classes,1).T
 
-                #assert (heads[0,:] == aux[0]).all(), f"{heads[0,:]}, {aux[0]}"
                 heads = heads.reshape(-1)
-                #assert (heads[:num_ontology_classes] == aux[0]).all(), f"{heads[:num_ontology_classes]}, {aux[0]}"
-
+                
                 rels = rels.to(self.device)
                 rels_rep = rels.repeat(num_ontology_classes,1).T
                 rels_rep = rels_rep.reshape(-1)
                                                 
                 eval_tails = self.ontology_classes_idxs.repeat(num_heads)
-                #assert (eval_tails[:num_ontology_classes] == all_classes).all(), f"{eval_tails[:num_ontology_classes]}, {self.ontology_classes}"
-                
-                #assert heads.shape == eval_tails.shape == rels_rep.shape, f"{heads.shape} {eval_tails.shape} {rels_rep.shape}"
-
+                                
                 somevaluesfrom_relation_id = self.relation_to_id['http://www.w3.org/2002/07/owl#someValuesFrom']
                 somevaluesfrom = somevaluesfrom_relation_id * th.ones_like(rels_rep)
 
