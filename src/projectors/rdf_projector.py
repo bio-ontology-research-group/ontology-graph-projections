@@ -33,10 +33,6 @@ def rdf_projector(input_ontology):
     owl2rdf(owlfile)
 
 
-    
-if __name__ == '__main__':
-    
-    
 @ck.command()
 @ck.option("--input_ontology", "-i", type=ck.Path(exists=True), required=True)
 def main(input_ontology):
@@ -44,6 +40,5 @@ def main(input_ontology):
     print("Done")
 
 if __name__ == "__main__":
-    
     
     main()

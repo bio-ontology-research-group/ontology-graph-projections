@@ -34,9 +34,6 @@ def onto2graph_projector(input_ontology, jar_dir):
     if not owlfile.endswith('.owl'):
         raise Exception('File must be an OWL file')
 
-@ck.command()
-@ck.option("--input_ontology", "-i", type=ck.Path(exists=True), required=True)
-def main(input_ontology):
     rdfxmlfile = input_ontology.replace('.owl', '.onto2graph')
 
     jarfile = os.path.abspath(jar_dir + 'Onto2Graph/target/Onto2Graph-1.0.jar')
