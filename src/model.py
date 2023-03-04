@@ -487,7 +487,7 @@ class Model():
           logits = logits.reshape(-1, len(self.ontology_classes_idxs))
           return logits
 
-    def get_preds_and_labels(self, existential_axioms = False, both_quantifiers = False):
+    def get_training_labels(self, existential_axioms, both_quantifiers):
                                                     
         logging.info("Getting predictions and labels")
 
@@ -513,10 +513,8 @@ class Model():
         logging.debug(f"num_eval_relations: {num_eval_relations}")
 
             
-        preds = -1 * np.ones((num_eval_relations, num_testing_heads, num_testing_tails))
         trlabels = np.ones((num_eval_relations, num_testing_heads, num_testing_tails))
 
-        logging.debug(f"preds.shape: {preds.shape}")
         logging.debug(f"trlabels.shape: {trlabels.shape}")
         
         self.model.load_state_dict(th.load(self.model_path))
@@ -545,50 +543,42 @@ class Model():
                     tail_ont_id = th.where(self.ontology_classes_idxs == tail_graph_id)[0]
                     trlabels[rel_id][head_ont_id][tail_ont_id] = 10000
 
-        with th.no_grad():
-            for eval_rel_name, eval_rel_idx in self.eval_relations.items():
-                for (head_idxs,) in tqdm(self.prediction_dataloader(), desc=f"Getting predictions for relation {eval_rel_name}"):
-                    aux = head_idxs.to(self.device)
-
-                    num_head_idxs = len(head_idxs)
-                    head_idxs = head_idxs.to(self.device)
-                    head_idxs = head_idxs.repeat(num_testing_tails,1).T
-                    #assert (head_idxs[0,:] == aux[0]).all(), f"{head_idxs[0,:]}, {aux[0]}"
-
-                    head_idxs = head_idxs.reshape(-1)
-                    #assert (head_idxs[:num_testing_tails] == aux[0]).all(), f"{head_idxs[:num_testing_tails]}, {aux[0]}"
-                    rel_idx = eval_rel_idx
-                    rel_idxs = rel_idx * th.ones_like(head_idxs)
-
-                    eval_tails = all_tail_idxs.repeat(num_head_idxs)
-                    #assert (eval_tails[:num_testing_tails] == self.all_tail_idxs).all(), f"{eval_tails[:num_testing_tails]}, {self.all_tail_idxs}"
-
-                    #assert head_idxs.shape == rel_idxs.shape == eval_tails.shape, f"{head_idxs.shape, rel_idxs.shape, eval_tails.shape}"
-
-                    eval_tails = eval_tails.to(self.device)
-
-                    if existential_axioms:
-                        if self.graph_type == "rdf":
-                            logits = self.rdf_existential_forward(head_idxs, rel_idxs, eval_tails, both_quantifiers)
-                        else:
-                            logits = self.existential_forward(head_idxs, rel_idxs, eval_tails, both_quantifiers)
-                                
-                    else:
-                        logits = self.normal_forward(head_idxs, rel_idxs, eval_tails)
-                                                
-                    for i, head in enumerate(aux):
-                        head_ont_id = th.where(self.ontology_classes_idxs == head)[0]
-                        preds[eval_rel_idx][head_ont_id] = logits[i].cpu().numpy()
-
-        assert np.min(preds) >=0, f"Min value of preds is {np.min(preds)}"
         
-        return preds, trlabels
+        return trlabels
 
-        #pkl.dump(self._predictions, open(self.pred_file, "wb"))
-        #pkl.dump(self._labels, open(self.label_file, "wb"))
-            
 
-    def compute_ranking_metrics(self, predictions, training_labels):
+    def predict(self, heads, rels, tails, existential_axioms, both_quantifiers):
+
+        aux = heads.to(self.device)
+        num_heads = len(heads)
+                
+        heads = heads.to(self.device)
+        heads = heads.repeat(len(self.ontology_classes_idxs)).T
+
+        heads = heads.reshape(-1)
+        
+        rels = rels.to(self.device)
+        rels = rels.repeat(len(self.ontology_classes_idxs),1).T
+        rels = rels.reshape(-1)
+                                                
+        eval_tails = self.ontology_classes_idxs.repeat(num_heads)
+                
+        
+        if existential_axioms:
+            if self.graph_type == "rdf":
+                logits = self.rdf_existential_forward(heads, rels, eval_tails, both_quantifiers)
+            else:
+                logits = self.existential_forward(heads, rels, eval_tails, both_quantifiers)
+                                
+        else:
+            logits = self.normal_forward(heads, rels, eval_tails)
+
+        return logits
+        
+                                 
+        
+
+    def compute_ranking_metrics(self, training_labels, existential_axioms, both_quantifiers):
         print(f"Loading best model from {self.model_path}")
         self.model.load_state_dict(th.load(self.model_path))
         self.model = self.model.to(self.device)
@@ -603,6 +593,9 @@ class Model():
         testing_dataloader = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
         with th.no_grad():
             for head_idxs, rel_idxs, tail_idxs in tqdm(testing_dataloader, desc="Computing metrics..."):
+
+                predictions = self.predict(head_idxs, rel_idxs, tail_idxs, existential_axioms, both_quantifiers)
+                
                 for i, graph_head in enumerate(head_idxs):
 
                     head = th.where(self.ontology_classes_idxs == graph_head)[0]
@@ -611,13 +604,18 @@ class Model():
                     tail = th.where(self.ontology_classes_idxs == graph_tail)[0]
 
                     rel = rel_idxs[i]
-                    eval_rel = self.eval_relations[self.id_to_relation[rel.item()]]
-                    preds = predictions[eval_rel][head]
+                    if self.graph_type == "rdf":
+                        eval_rel = self.eval_relations[self.id_to_class[rel.item()]]
+                    else:
+                        eval_rel = self.eval_relations[self.id_to_relation[rel.item()]]
 
+                    preds = predictions[i].cpu().numpy()
+                    
                     trlabels = training_labels[eval_rel][head]
                     trlabels[tail] = 1
                     filtered_preds = preds * trlabels
                                                             
+
                     preds = th.from_numpy(preds).to(self.device)
                     filtered_preds = th.from_numpy(filtered_preds).to(self.device)
 
@@ -703,9 +701,9 @@ class Model():
         print(f"\t\tExistential axioms: {existential_axioms}")
 
         print("Computing predictions...")
-        preds, trlabels = self.get_preds_and_labels(existential_axioms, both_quantifiers)
+        trlabels = self.get_training_labels(existential_axioms, both_quantifiers)
         print("Computing metrics...")
-        raw_metrics, filtered_metrics = self.compute_ranking_metrics(preds, trlabels)
+        raw_metrics, filtered_metrics = self.compute_ranking_metrics(trlabels, existential_axioms, both_quantifiers)
         return raw_metrics, filtered_metrics
         
                 
