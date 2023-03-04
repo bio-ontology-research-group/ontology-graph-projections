@@ -1,10 +1,14 @@
-import rdflib
-import time
-import sys
-import tqdm
+import mowl
+mowl.init_jvm("10g")
+
 import subprocess
 import os
 import click as ck
+import time
+import tqdm
+import rdflib
+import os
+
 
 def owl2rdf(owlfile):
     start_time = time.time()
@@ -18,17 +22,25 @@ def owl2rdf(owlfile):
                 continue
             if isinstance(o, rdflib.term.Literal):
                 continue
+
             f.write(str(s) + '\t' + str(p) + '\t' + str(o) + '\n')
 
     print("--- %s seconds ---" % (time.time() - start_time))
 
+
+def onto2graph_projector(input_ontology, jar_dir):
+    owlfile = os.path.abspath(input_ontology)
+    
+    if not owlfile.endswith('.owl'):
+        raise Exception('File must be an OWL file')
 
 @ck.command()
 @ck.option("--input_ontology", "-i", type=ck.Path(exists=True), required=True)
 def main(input_ontology):
     rdfxmlfile = input_ontology.replace('.owl', '.onto2graph')
 
-    command = ['java', '-jar', 'Onto2Graph/target/Onto2Graph-1.0.jar', '-ont', input_ontology, '-out', rdfxmlfile, '-eq', "true", "-op", "[*]", '-r', 'ELK', '-f', 'RDFXML', '-nt', '8']
+    jarfile = os.path.abspath(jar_dir + 'Onto2Graph/target/Onto2Graph-1.0.jar')
+    command = ['java', '-jar', jarfile, '-ont', owlfile, '-out', rdfxmlfile, '-eq', "true", "-op", "[*]", '-r', 'ELK', '-f', 'RDFXML', '-nt', '8']
     
     rdfxmlfile = rdfxmlfile + '.rdfxml'
 
@@ -38,6 +50,17 @@ def main(input_ontology):
     print("Onto2Graph finished")
     print("Converting to edgelist")
     owl2rdf(rdfxmlfile)
-                    
+    
+
+@ck.command()
+@ck.option("--input_ontology", "-i", type=ck.Path(exists=True), required=True)
+@ck.option("--jar_dir", "-j", type=ck.Path(exists=True), required=True)
+def main(input_ontology, jar_dir):
+    
+    onto2graph_projector(input_ontology,jar_dir)
+    print("Done")
+
 if __name__ == '__main__':
+    
+    
     main()

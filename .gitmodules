@@ -1,6 +1,3 @@
 [submodule "src/projectors/Onto2Graph"]
 	path = src/projectors/Onto2Graph
 	url = https://github.com/ferzcam/Onto2Graph.git
-[submodule "src/projectors/OWL2Vec-Star"]
-	path = src/projectors/OWL2Vec-Star
-	url = https://github.com/KRR-Oxford/OWL2Vec-Star

@@ -1,6 +1,8 @@
-import rdflib
+import mowl
+mowl.init_jvm("10g")
+import click as ck
 import time
-import sys
+import rdflib
 import tqdm
 import click as ck
 
@@ -22,9 +24,8 @@ def owl2rdf(owlfile):
     print("--- %s seconds ---" % (time.time() - start_time))
 
 
-@ck.command()
-@ck.option("--input_ontology", "-i", type=ck.Path(exists=True), required=True)
-def main(input_ontology):
+
+def rdf_projector(input_ontology):
     owlfile = input_ontology
     if not owlfile.endswith(".owl"):
         raise Exception("Input file must be an OWL file")
@@ -35,3 +36,14 @@ def main(input_ontology):
     
 if __name__ == '__main__':
     
+    
+@ck.command()
+@ck.option("--input_ontology", "-i", type=ck.Path(exists=True), required=True)
+def main(input_ontology):
+    rdf_projector(input_ontology)
+    print("Done")
+
+if __name__ == "__main__":
+    
+    
+    main()

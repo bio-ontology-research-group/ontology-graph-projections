@@ -8,19 +8,18 @@ from torch.utils.data import Dataset
 import torch.optim as optim
 import torch.nn as nn
 
-from pykeen.models import TransE, TransR, TransD, BoxE
+from pykeen.models import TransE
 from pykeen.triples import TriplesFactory
 
 from tqdm import trange, tqdm
 
 from mowl.owlapi.defaults import BOT, TOP
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 prefix = {
     "go": "go",
-    "hpo": "hp",
     "foodon": "foodon",
-    "go_link_pred": "go.train",
-    "foodon_link_pred": "foodon-merged.train"
 }
 suffix = {
     "taxonomy": "taxonomy.edgelist",
@@ -50,7 +49,7 @@ class ProjectionModule(nn.Module):
                                  scoring_fct_norm=2, #self.p_norm, # Trans[E,R]
                                  random_seed = self.random_seed)
                         
-    def forward(self, data, mode="kg"):
+    def forward(self, data):
         h, r, t = data
         x = -self.kg_module.forward(h, r, t, mode=None)
         
@@ -118,14 +117,15 @@ class Model():
         self._graph_path = None
         self._ontology_classes = None
         self._ontology_classes_idxs = None
-
+        self._ontology_relations = None
+        self._ontology_relations_idxs = None
+        
         self._triples_factory = None
 
         self.model = ProjectionModule(triples_factory=self.triples_factory,
-                            embedding_dim=self.emb_dim,
-                            scoring_fct_norm=self.p_norm, # Trans[E,R]
-                            random_seed = self.seed
-                            )
+                                      embedding_dim=self.emb_dim,
+                                      random_seed = self.seed
+                                      )
                                                         
         assert os.path.exists(self.root), f"Root directory '{self.root}' does not exist"
 
@@ -171,8 +171,13 @@ class Model():
         all_classes = list(graph_classes | ont_classes)
         all_classes.sort()
         self._class_to_id = {c: i for i, c in enumerate(all_classes)}
+        logging.info(f"Number of graph nodes: {len(self._class_to_id)}")
         return self._class_to_id
 
+    @property
+    def id_to_class(self):
+        return {v: k for k, v in self.class_to_id.items()}
+    
     @property
     def relation_to_id(self):
         if self._relation_to_id is not None:
@@ -181,8 +186,12 @@ class Model():
         graph_rels = list(self.graph["relation"].unique())
         graph_rels.sort()
         self._relation_to_id = {r: i for i, r in enumerate(graph_rels)}
+        logging.info(f"Number of graph relations: {len(self._relation_to_id)}")
         return self._relation_to_id
-        
+
+    @property
+    def id_to_relation(self):
+        return {v: k for k, v in self.relation_to_id.items()}
 
     @property
     def graph_path(self):
@@ -225,8 +234,6 @@ class Model():
         params_str += f"_lr{self.lr}"
         params_str += f"_negs{self.num_negs}"
         
-
-
         models_dir = os.path.dirname(self.root)
         models_dir = os.path.join(models_dir, "models")
 
@@ -244,6 +251,12 @@ class Model():
     def classes_path(self):
         path = os.path.join(self.root, "classes.txt")
         assert os.path.exists(path), f"Classes file {path} does not exist"
+        return path
+
+    @property
+    def relations_path(self):
+        path = os.path.join(self.root, "relations.txt")
+        assert os.path.exists(path), f"Relations file {path} does not exist"
         return path
 
     @property
@@ -275,8 +288,41 @@ class Model():
         ontology_classes_idxs = th.tensor(list(eval_class_to_id.values()), dtype=th.long, device=self.device)
         self._ontology_classes_idxs = ontology_classes_idxs
         return self._ontology_classes_idxs
-            
-             
+
+    @property
+    def ontology_relations(self):
+        if self._ontology_relations is not None:
+            return self._ontology_relations
+        
+        eval_relations = pd.read_csv(self.relations_path, sep=",", header=None)
+        eval_relations.columns = ["relations"]
+        eval_relations = eval_relations["relations"].values
+        eval_relations.sort()
+
+        self._ontology_relations = eval_relations
+        return self._ontology_relations
+    
+    @property
+    def ontology_relations_idxs(self):
+        if self._ontology_relations_idxs is not None:
+            return self._ontology_relations_idxs
+        
+        eval_relations = pd.read_csv(self.relations_path, sep=",", header=None)
+        eval_relations.columns = ["relations"]
+        eval_relations = eval_relations["relations"].values.tolist()
+        eval_relations.sort()
+
+        if self.graph_type == "rdf":
+            eval_rel_to_id = {c: self.class_to_id[c] for c in eval_relations if c in self.class_to_id}
+        else:
+            eval_rel_to_id = {c: self.relation_to_id[c] for c in eval_relations if c in self.relation_to_id}
+        
+        logging.info(f"Number of ontology relations found in projection: {len(eval_rel_to_id)}")
+        ontology_relations_idxs = th.tensor(list(eval_rel_to_id.values()), dtype=th.long, device=self.device)
+        self._ontology_relations_idxs = ontology_relations_idxs
+        return self._ontology_relations_idxs
+
+    
     def create_graph_train_dataloader(self):
         heads = [self.class_to_id[h] for h in self.graph["head"]]
         rels = [self.relation_to_id[r] for r in self.graph["relation"]]
@@ -321,16 +367,21 @@ class Model():
         dataloader = FastTensorDataLoader(heads, rels, tails, batch_size=batch_size, shuffle=True)
         return dataloader
 
+    def prediction_dataloader(self):
+        dataloader = FastTensorDataLoader(self.ontology_classes_idxs, batch_size = self.test_batch_size, shuffle=False)
+        return dataloader
+
+
+    
+    
+    
     def train(self):
 
         optimizer = optim.Adam(self.model.parameters(), lr=0.000001, weight_decay = self.weight_decay)
         min_lr = self.lr/100  #0.0001 #0.000001
         max_lr = self.lr #0.01 #0.0001
         scheduler = th.optim.lr_scheduler.CyclicLR(optimizer, base_lr=min_lr, max_lr=max_lr, step_size_up = 30, cycle_momentum = False)
-        criterion = nn.MarginRankingLoss(margin=self.margin)
-        criterion_bpr = nn.LogSigmoid()
-        criterion_bce = nn.BCEWithLogitsLoss()
-        
+                        
         self.model = self.model.to(self.device)
 
         graph_dataloader = self.create_graph_train_dataloader()
@@ -351,16 +402,16 @@ class Model():
                 tail = tail.to(self.device)
                 
                 data = (head, rel, tail)
-                pos_logits = self.model.forward(data, mode="kg")
+                pos_logits = self.model.forward(data)
 
                 neg_logits = 0
                 for i in range(self.num_negs):
                     neg_tail = th.randint(0, len(self.class_to_id), (len(head),), device=self.device)
                     data = (head, rel, neg_tail)
-                    neg_logits += self.model.forward(data, mode="kg")
+                    neg_logits += self.model.forward(data)
                 neg_logits /= self.num_negs
                 
-                batch_loss= -criterion_bpr(pos_logits - neg_logits + self.margin).mean()
+                batch_loss= th.relu(pos_logits - neg_logits + self.margin).mean()
 
                 optimizer.zero_grad()
                 batch_loss.backward()
@@ -387,522 +438,278 @@ class Model():
             print(f"Train loss: {graph_loss:.6f}\n")
                 
 
+    def rdf_existential_forward(self, heads_idxs, rel_idxs, tails_idxs, both_quantifiers):
+        somevaluesfrom_relation_id = self.relation_to_id['http://www.w3.org/2002/07/owl#someValuesFrom']
+        somevaluesfrom = somevaluesfrom_relation_id * th.ones_like(heads_idxs)
+                
+        data1_ex = (heads_idxs, somevaluesfrom, tails_idxs)
+        logits1_ex = self.model.forward(data1_ex)
+        logits1_ex = logits1_ex.reshape(-1, len(self.ontology_classes_idxs))
+
+        data2_ex = (rel_idxs, somevaluesfrom, tails_idxs)
+        logits2_ex = self.model.forward(data2_ex)
+        logits2_ex = logits2_ex.reshape(-1, len(self.ontology_classes_idxs))
+
+        logits_ex = logits1_ex + logits2_ex
+
+        if both_quantifiers:
+            
+            allvaluesfrom_relation_id = self.relation_to_id['http://www.w3.org/2002/07/owl#allValuesFrom']
+            allvaluesfrom = allvaluesfrom_relation_id * th.ones_like(heads_idxs)
+
+            data1_all = (heads_idxs, allvaluesfrom, tails_idxs)
+            logits1_all = self.model.forward(data1_all)
+            logits1_all = logits1_all.reshape(-1, len(self.ontology_classes_idxs))
+
+            data2_all = (rel_idxs, allvaluesfrom, tails_idxs)
+            logits2_all = self.model.forward(data2_all)
+            logits2_all = logits2_all.reshape(-1, len(self.ontology_classes_idxs))
+
+            logits_al = logits1_all + logits2_all
+            logits = th.cat((logits_ex, logits_al), dim=1)
+        else:
+            logits = logits_ex
+
+        return logits
+
+    def existential_forward(self, head_idxs, rel_idxs, tail_idxs, both_quantifiers):
+        logits = self.model.forward((head_idxs, rel_idxs, tail_idxs))
+        logits = logits.reshape(-1, len(self.ontology_classes_idxs))
+        if both_quantifiers:
+            logits = th.cat([logits, logits], dim=1)
+        return logits
+
+          
+    def normal_forward(self, head_idxs, rel_idxs, tail_idxs):
+          logits = self.model.forward((head_idxs, rel_idxs, tail_idxs))
+          logits = logits.reshape(-1, len(self.ontology_classes_idxs))
+          return logits
+
+    def get_preds_and_labels(self, existential_axioms = False, both_quantifiers = False):
+                                                    
+        logging.info("Getting predictions and labels")
+
+        num_testing_heads = len(self.ontology_classes_idxs)
+        num_testing_tails = num_testing_heads
+        
+        subsumption_relation = rel_name[self.graph_type]
+        rel_to_eval_id = {subsumption_relation: self.relation_to_id[subsumption_relation]}
+
+        
+        self.eval_relations = {subsumption_relation: 0} # this variable is defined here for the first time and it is used later in compute_ranking_metrics function
+        
+        if existential_axioms:
+            num_relations = len(self.ontology_relations_idxs)
+            assert num_relations > 1, f"Number of relations: {num_relations}"
+
+            rel_to_eval_id = {rel: idx for idx, rel in enumerate(self.ontology_relations)}
+                                                        
+            self.eval_relations = dict(zip(self.ontology_relations, range(num_relations)))
+            if  both_quantifiers:
+                num_testing_tails *= 2
+
+        num_relations = len(rel_to_eval_id)
+        num_eval_relations = len(self.eval_relations)
+        logging.debug(f"num_testing_heads: {num_testing_heads}")
+        logging.debug(f"num_testing_tails: {num_testing_tails}")
+        logging.debug(f"num_relations: {num_relations}")
+        logging.debug(f"num_eval_relations: {num_eval_relations}")
 
             
-    def test(self):
+        preds = -1 * np.ones((num_eval_relations, num_testing_heads, num_testing_tails))
+        trlabels = np.ones((num_eval_relations, num_testing_heads, num_testing_tails))
 
-        print(f"Loading best model from {self.model_path}")
-        print("\nTesting")
-        self.model.load_state_dict(th.load(self.model_path))
-        self.model = self.model.to(self.device)
-
-        test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
-
-        self.model.eval()
-                                                
-        num_ontology_classes = len(self.ontology_classes_idxs)
-
-        print("Number of classes:", num_ontology_classes)
-
-        hits_at_1 = 0
-        hits_at_10 = 0
-        hits_at_100 = 0
+        logging.debug(f"preds.shape: {preds.shape}")
+        logging.debug(f"trlabels.shape: {trlabels.shape}")
         
-        mean_rank = 0
-        mrr = 0
-
-        all_classes = th.tensor(list(self.ontology_classes_idxs), dtype=th.long, device=self.device)
-        with th.no_grad():
-            for heads, rels, tails in tqdm(test_subsumption_dl):
-                                                    
-                aux = heads.to(self.device)
-                num_heads = len(heads)
-                
-                heads = heads.to(self.device)
-                heads = heads.repeat(num_ontology_classes,1).T
-                heads = heads.reshape(-1)
-                
-                rels = rels.to(self.device)
-                rels = rels.repeat(num_ontology_classes,1).T
-                rels = rels.reshape(-1)
-                                                
-                eval_tails = self.ontology_classes_idxs.repeat(num_heads)
-                                
-                data = (heads, rels, eval_tails)
-                logits = self.model.forward(data, mode="kg")
-                logits = logits.reshape(num_heads, num_ontology_classes)
-
-                orderings = th.argsort(logits, dim=1, descending=True)
-
-                all_classes_repeated = all_classes.repeat(len(tails),1)
-                tail_ids = th.nonzero(all_classes_repeated == tails.to(self.device).unsqueeze(1), as_tuple=False)[:,1]
-                                                                            
-                ranks = th.nonzero(orderings == tail_ids.unsqueeze(1), as_tuple=False)[:,1]
-
-                for rank in ranks:
-                    rank = rank.item()
-                    mean_rank += rank
-                    mrr += (1/(rank+1))
-                    if rank == 0:
-                        hits_at_1 += 1
-                    if rank < 10:
-                        hits_at_10 += 1
-                    if rank < 100:
-                        hits_at_100 += 1
-                                            
-                        
-        mean_rank /= test_subsumption_dl.dataset_len
-        mrr /= test_subsumption_dl.dataset_len
-        hits_at_1 /= test_subsumption_dl.dataset_len
-        hits_at_10 /= test_subsumption_dl.dataset_len
-        hits_at_100 /= test_subsumption_dl.dataset_len
-        return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
-
-    def test_with_both_quantifiers(self):
-
-        print(f"Loading best model from {self.model_path}")
-        print("\nTesting with both quantifiers")
         self.model.load_state_dict(th.load(self.model_path))
         self.model = self.model.to(self.device)
+        self.model.eval()
+        
+        logging.info("Model loaded")
+        all_head_idxs = self.ontology_classes_idxs.to(self.device)
+        all_tail_idxs = self.ontology_classes_idxs.to(self.device)
+        eval_rel_idx = None
 
-        test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+        testing_dataloader = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+        with th.no_grad():
+            for head_idxs, rel_idxs, tail_idxs in tqdm(testing_dataloader, desc="Getting labels"):
+                head_idxs = head_idxs.to(self.device)
+                
+                for i, head_graph_id in enumerate(head_idxs):
+                    head_ont_id = th.where(self.ontology_classes_idxs == head_graph_id)[0]
+                    rel = rel_idxs[i]
+                    if self.graph_type == 'rdf':
+                        graph_rel_name = self.id_to_class[rel.item()]    
+                    else:
+                        graph_rel_name = self.id_to_relation[rel.item()]
+                    rel_id = self.eval_relations[graph_rel_name]
+                    tail_graph_id = tail_idxs[i]
+                    tail_ont_id = th.where(self.ontology_classes_idxs == tail_graph_id)[0]
+                    trlabels[rel_id][head_ont_id][tail_ont_id] = 10000
+
+        with th.no_grad():
+            for eval_rel_idx in rel_to_eval_id.values():
+                for (head_idxs,) in tqdm(self.prediction_dataloader(), desc=f"Getting predictions for relation {self.ontology_relations[eval_rel_idx]}"):
+                    aux = head_idxs.to(self.device)
+
+                    num_head_idxs = len(head_idxs)
+                    head_idxs = head_idxs.to(self.device)
+                    head_idxs = head_idxs.repeat(num_testing_tails,1).T
+                    #assert (head_idxs[0,:] == aux[0]).all(), f"{head_idxs[0,:]}, {aux[0]}"
+
+                    head_idxs = head_idxs.reshape(-1)
+                    #assert (head_idxs[:num_testing_tails] == aux[0]).all(), f"{head_idxs[:num_testing_tails]}, {aux[0]}"
+                    rel_idx = self.ontology_relations_idxs[eval_rel_idx]
+                    rel_idxs = rel_idx * th.ones_like(head_idxs)
+
+                    eval_tails = all_tail_idxs.repeat(num_head_idxs)
+                    #assert (eval_tails[:num_testing_tails] == self.all_tail_idxs).all(), f"{eval_tails[:num_testing_tails]}, {self.all_tail_idxs}"
+
+                    #assert head_idxs.shape == rel_idxs.shape == eval_tails.shape, f"{head_idxs.shape, rel_idxs.shape, eval_tails.shape}"
+
+                    eval_tails = eval_tails.to(self.device)
+
+                    if existential_axioms:
+                        if self.graph_type == "rdf":
+                            logits = self.rdf_existential_forward(head_idxs, rel_idxs, eval_tails, both_quantifiers)
+                        else:
+                            logits = self.existential_forward(head_idxs, rel_idxs, eval_tails, both_quantifiers)
+                                
+                    else:
+                        logits = self.normal_forward(head_idxs, rel_idxs, eval_tails)
+                                                
+                    for i, head in enumerate(aux):
+                        head_ont_id = th.where(self.ontology_classes_idxs == head)[0]
+                        preds[eval_rel_idx][head_ont_id] = logits[i].cpu().numpy()
+
+        assert np.min(preds) >=0, f"Min value of preds is {np.min(preds)}"
+        
+        return preds, trlabels
+
+        #pkl.dump(self._predictions, open(self.pred_file, "wb"))
+        #pkl.dump(self._labels, open(self.label_file, "wb"))
             
-        self.model.eval()
-                                                
-        num_ontology_classes = len(self.ontology_classes_idxs)
 
-        print("Number of classes:", num_ontology_classes)
-
-        hits_at_1 = 0
-        hits_at_10 = 0
-        hits_at_100 = 0
-        
-        mean_rank = 0
-        mrr = 0
-
-        all_classes = th.tensor(list(self.ontology_classes_idxs), dtype=th.long, device=self.device)
-        with th.no_grad():
-            for heads, rels, tails in tqdm(test_subsumption_dl):
-                                                    
-                aux = heads.to(self.device)
-                num_heads = len(heads)
-                
-                heads = heads.to(self.device)
-                heads = heads.repeat(num_ontology_classes,1).T
-                heads = heads.reshape(-1)
-                
-                rels = rels.to(self.device)
-                rels = rels.repeat(num_ontology_classes,1).T
-                rels = rels.reshape(-1)
-                                                
-                eval_tails = self.ontology_classes_idxs.repeat(num_heads)
-                                
-                data = (heads, rels, eval_tails)
-                logits = self.model.forward(data, mode="kg")
-                logits = logits.reshape(num_heads, num_ontology_classes)
-
-                logits = th.cat((logits, logits), dim=1)
-
-                orderings = th.argsort(logits, dim=1, descending=True)
-
-                all_classes_repeated = all_classes.repeat(len(tails),1)
-                tail_ids = th.nonzero(all_classes_repeated == tails.to(self.device).unsqueeze(1), as_tuple=False)[:,1]
-                                                                            
-                ranks = th.nonzero(orderings == tail_ids.unsqueeze(1), as_tuple=False)[:,1]
-
-                for rank in ranks:
-                    rank = rank.item()
-                    mean_rank += rank
-                    mrr += (1/(rank+1))
-                    if rank == 0:
-                        hits_at_1 += 1
-                    if rank < 10:
-                        hits_at_10 += 1
-                    if rank < 100:
-                        hits_at_100 += 1
-                                            
-                        
-        mean_rank /= test_subsumption_dl.dataset_len
-        mrr /= test_subsumption_dl.dataset_len
-        hits_at_1 /= test_subsumption_dl.dataset_len
-        hits_at_10 /= test_subsumption_dl.dataset_len
-        hits_at_100 /= test_subsumption_dl.dataset_len
-        return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
-
-
-    def test_filtered(self):
-
+    def compute_ranking_metrics(self, predictions, training_labels):
         print(f"Loading best model from {self.model_path}")
-        print("\nTesting")
         self.model.load_state_dict(th.load(self.model_path))
         self.model = self.model.to(self.device)
+        self.model.eval()
+        mean_rank, filtered_mean_rank = 0, 0
+        mrr, filtered_mrr = 0, 0
+        hits_at_1, fhits_at_1 = 0, 0
+        hits_at_10, fhits_at_10 = 0, 0
+        hits_at_100, fhits_at_100 = 0, 0
+        ranks, filtered_ranks = dict(), dict()
 
+        testing_dataloader = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+        with th.no_grad():
+            for head_idxs, rel_idxs, tail_idxs in tqdm(testing_dataloader, desc="Computing metrics..."):
+                for i, graph_head in enumerate(head_idxs):
 
-        test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+                    head = th.where(self.ontology_classes_idxs == graph_head)[0]
                     
-        self.model.eval()
-                                                
-        num_ontology_classes = len(self.ontology_classes_idxs)
+                    graph_tail = tail_idxs[i]
+                    tail = th.where(self.ontology_classes_idxs == graph_tail)[0]
 
-        print("Number of classes:", num_ontology_classes)
+                    rel = rel_idxs[i]
+                    eval_rel = th.where(self.ontology_relations_idxs == rel)[0]
+                    preds = predictions[eval_rel][head]
 
-        hits_at_1 = 0
-        hits_at_10 = 0
-        hits_at_100 = 0
-        
-        mean_rank = 0
-        mrr = 0
+                    trlabels = training_labels[eval_rel][head]
+                    trlabels[tail] = 1
+                    filtered_preds = preds * trlabels
+                                                            
+                    preds = th.from_numpy(preds).to(self.device)
+                    filtered_preds = th.from_numpy(filtered_preds).to(self.device)
 
-        test_set = dict()
-        all_classes = th.tensor(list(self.ontology_classes_idxs), dtype=th.long, device=self.device)
-        print("Getting filtering data...")
-        for heads, rels, tails in tqdm(test_subsumption_dl):
-            for i, head in enumerate(heads):
-                h = th.where(all_classes == head)[0].item()
-                r = rels[i].item()
-                t = th.where(all_classes == tails[i])[0].item()
-                
-                if (h,r) not in test_set:
-                    test_set[(h,r)] = set()
-                test_set[(h,r)].add(t)
-        
-        
-        print("Testing...")
-        with th.no_grad():
-            for heads, rels, tails in tqdm(test_subsumption_dl):
-                                                    
-                aux = heads.to(self.device)
-                num_heads = len(heads)
-                
-                heads = heads.to(self.device)
-                heads = heads.repeat(num_ontology_classes,1).T
-
-                heads = heads.reshape(-1)
-                
-                rels = rels.to(self.device)
-                rels_rep = rels.repeat(num_ontology_classes,1).T
-                rels_rep = rels_rep.reshape(-1)
-                                                
-                eval_tails = self.ontology_classes_idxs.repeat(num_heads)
-                                
-                data = (heads, rels_rep, eval_tails)
-                logits = self.model.forward(data, mode="kg")
-                logits = logits.reshape(num_heads, num_ontology_classes)
-                tails = tails.to(self.device)
-                for i, head in enumerate(aux):
-                    head_id = th.where(all_classes==head)[0].item()
-                    rel_id = rels[i].item()
-                    for cand_tail in list(test_set[(head_id, rel_id)]):
-                        tail_id = th.where(all_classes==tails[i])[0].item()
-                        if cand_tail == tail_id:
-                            continue
-                        logits[i, cand_tail] = -1e9
-
-                orderings = th.argsort(logits, dim=1, descending=True)
-
-                all_classes_repeated = all_classes.repeat(len(tails),1)
-                tail_ids = th.nonzero(all_classes_repeated == tails.to(self.device).unsqueeze(1), as_tuple=False)[:,1]
-                                                                            
-                ranks = th.nonzero(orderings == tail_ids.unsqueeze(1), as_tuple=False)[:,1]
-
-                for rank in ranks:
-                    rank = rank.item()
-                    mean_rank += rank
-                    mrr += (1/(rank+1))
-                    if rank == 0:
-                        hits_at_1 += 1
-                    if rank < 10:
-                        hits_at_10 += 1
-                    if rank < 100:
-                        hits_at_100 += 1
-                                            
-                        
-        mean_rank /= test_subsumption_dl.dataset_len
-        mrr /= test_subsumption_dl.dataset_len
-        hits_at_1 /= test_subsumption_dl.dataset_len
-        hits_at_10 /= test_subsumption_dl.dataset_len
-        hits_at_100 /= test_subsumption_dl.dataset_len
-        return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
-
-
-
-    def test_rdf(self):
-        
-        print(f"Loading best model from {self.model_path}")
-        print("\nTesting")
-        self.model.load_state_dict(th.load(self.model_path))
-        self.model = self.model.to(self.device)
-
-        test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+                    orderings = th.argsort(preds, descending=False)
+                    filtered_orderings = th.argsort(filtered_preds, descending=False)
                     
-        self.model.eval()
-                                                
-        num_ontology_classes = len(self.ontology_classes_idxs)
-
-        print("Number of classes:", num_ontology_classes)
-
-        hits_at_1 = 0
-        hits_at_10 = 0
-        hits_at_100 = 0
-        
-        mean_rank = 0
-        mrr = 0
-
-        all_classes = th.tensor(list(self.ontology_classes_idxs), dtype=th.long, device=self.device)
-        with th.no_grad():
-            for heads, rels, tails in tqdm(test_subsumption_dl):
-                                                    
-                aux = heads.to(self.device)
-                num_heads = len(heads)
-                
-                heads = heads.to(self.device)
-                heads = heads.repeat(num_ontology_classes,1).T
-
-                heads = heads.reshape(-1)
-                
-                rels = rels.to(self.device)
-                rels = rels.repeat(num_ontology_classes,1).T
-                rels = rels.reshape(-1)
-                                                
-                eval_tails = self.ontology_classes_idxs.repeat(num_heads)
-                                
-                somevaluesfrom_relation_id = self.relation_to_id['http://www.w3.org/2002/07/owl#someValuesFrom']
-                somevaluesfrom = somevaluesfrom_relation_id * th.ones_like(rels)
-                
-                data1 = (heads, somevaluesfrom, eval_tails)
-                logits1 = self.model.forward(data1, mode="kg")
-                logits1 = logits1.reshape(num_heads, num_ontology_classes)
-
-                data2 = (rels, somevaluesfrom, eval_tails)
-                logits2 = self.model.forward(data2, mode="kg")
-                logits2 = logits2.reshape(num_heads, num_ontology_classes)
-
-                logits = logits1 + logits2
-                
-                orderings = th.argsort(logits, dim=1, descending=True)
-
-                all_classes_repeated = all_classes.repeat(len(tails),1)
-                tail_ids = th.nonzero(all_classes_repeated == tails.to(self.device).unsqueeze(1), as_tuple=False)[:,1]
-                                                                            
-                ranks = th.nonzero(orderings == tail_ids.unsqueeze(1), as_tuple=False)[:,1]
-
-                for rank in ranks:
-                    rank = rank.item()
+                    rank = th.where(orderings == tail)[0].item()
+                    filtered_rank = th.where(filtered_orderings == tail)[0].item()
+                    
                     mean_rank += rank
-                    mrr += (1/(rank+1))
+                    filtered_mean_rank += filtered_rank
+                    
+                    mrr += 1/(rank+1)
+                    filtered_mrr += 1/(filtered_rank+1)
+                    
                     if rank == 0:
                         hits_at_1 += 1
                     if rank < 10:
                         hits_at_10 += 1
                     if rank < 100:
                         hits_at_100 += 1
-                                            
-                        
-        mean_rank /= test_subsumption_dl.dataset_len
-        mrr /= test_subsumption_dl.dataset_len
-        hits_at_1 /= test_subsumption_dl.dataset_len
-        hits_at_10 /= test_subsumption_dl.dataset_len
-        hits_at_100 /= test_subsumption_dl.dataset_len
-        return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
 
-    def test_rdf_with_both_quantifiers(self):
+                    if rank not in ranks:
+                        ranks[rank] = 0
+                    ranks[rank] += 1
 
-        print(f"Loading best model from {self.model_path}")
-        print("\nTesting RDF with both quantifiers")
-        self.model.load_state_dict(th.load(self.model_path))
-        self.model = self.model.to(self.device)
+                    if filtered_rank == 0:
+                        fhits_at_1 += 1
+                    if filtered_rank < 10:
+                        fhits_at_10 += 1
+                    if filtered_rank < 100:
+                        fhits_at_100 += 1
 
-        test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+                    if filtered_rank not in filtered_ranks:
+                        filtered_ranks[filtered_rank] = 0
+                    filtered_ranks[filtered_rank] += 1
+
+            mean_rank /= testing_dataloader.dataset_len
+            mrr /= testing_dataloader.dataset_len
+            hits_at_1 /= testing_dataloader.dataset_len
+            hits_at_10 /= testing_dataloader.dataset_len
+            hits_at_100 /= testing_dataloader.dataset_len
+            auc = self.compute_rank_roc(ranks)
+
+            filtered_mean_rank /= testing_dataloader.dataset_len
+            filtered_mrr /= testing_dataloader.dataset_len
+            fhits_at_1 /= testing_dataloader.dataset_len
+            fhits_at_10 /= testing_dataloader.dataset_len
+            fhits_at_100 /= testing_dataloader.dataset_len
+            fauc = self.compute_rank_roc(filtered_ranks)
+
+            raw_metrics = (mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100, auc)
+            filtered_metrics = (filtered_mean_rank, filtered_mrr, fhits_at_1, fhits_at_10, fhits_at_100, fauc)
+        return raw_metrics, filtered_metrics
+
+
+    def compute_rank_roc(self, ranks):
+        n_tails = len(self.ontology_classes_idxs)
+        auc_x = list(ranks.keys())
+        auc_x.sort()
+        auc_y = []
+        tpr = 0
+        sum_rank = sum(ranks.values())
+        for x in auc_x:
+            tpr += ranks[x]
+            auc_y.append(tpr / sum_rank)
+        auc_x.append(n_tails)
+        auc_y.append(1)
+        auc = np.trapz(auc_y, auc_x) / n_tails
+        return auc
+
+
             
-        self.model.eval()
-                                                
-        num_ontology_classes = len(self.ontology_classes_idxs)
-
-        print("Number of classes:", num_ontology_classes)
-
-        hits_at_1 = 0
-        hits_at_10 = 0
-        hits_at_100 = 0
-        
-        mean_rank = 0
-        mrr = 0
-
-        all_classes = th.tensor(list(self.ontology_classes_idxs), dtype=th.long, device=self.device)
-        with th.no_grad():
-            for heads, rels, tails in tqdm(test_subsumption_dl):
-                                                    
-                aux = heads.to(self.device)
-                num_heads = len(heads)
-                
-                heads = heads.to(self.device)
-                heads = heads.repeat(num_ontology_classes,1).T
-                heads = heads.reshape(-1)
-                
-                rels = rels.to(self.device)
-                rels = rels.repeat(num_ontology_classes,1).T
-                rels = rels.reshape(-1)
-                                                
-                eval_tails = self.ontology_classes_idxs.repeat(num_heads)
-                                
-
-                somevaluesfrom_relation_id = self.relation_to_id['http://www.w3.org/2002/07/owl#someValuesFrom']
-                allvaluesfrom_relation_id = self.relation_to_id['http://www.w3.org/2002/07/owl#allValuesFrom']
-                somevaluesfrom = somevaluesfrom_relation_id * th.ones_like(rels)
-                allvaluesfrom = allvaluesfrom_relation_id * th.ones_like(rels)
-                
-                data1 = (heads, somevaluesfrom, eval_tails)
-                logits1 = self.model.forward(data1, mode="kg")
-                logits1 = logits1.reshape(num_heads, num_ontology_classes)
-
-                data2 = (rels, somevaluesfrom, eval_tails)
-                logits2 = self.model.forward(data2, mode="kg")
-                logits2 = logits2.reshape(num_heads, num_ontology_classes)
-
-                logits_ex = logits1 + logits2
-
-                data1 = (heads, allvaluesfrom, eval_tails)
-                logits1 = self.model.forward(data1, mode="kg")
-                logits1 = logits1.reshape(num_heads, num_ontology_classes)
-
-                data2 = (rels, allvaluesfrom, eval_tails)
-                logits2 = self.model.forward(data2, mode="kg")
-                logits2 = logits2.reshape(num_heads, num_ontology_classes)
-
-                logits_al = logits1 + logits2
-
-                logits = th.cat((logits_ex, logits_al), dim=1)
-                
-                orderings = th.argsort(logits, dim=1, descending=True)
-
-                all_classes_repeated = all_classes.repeat(len(tails),1)
-                tail_ids = th.nonzero(all_classes_repeated == tails.to(self.device).unsqueeze(1), as_tuple=False)[:,1]
-                                                                            
-                ranks = th.nonzero(orderings == tail_ids.unsqueeze(1), as_tuple=False)[:,1]
-
-                for rank in ranks:
-                    rank = rank.item()
-                    mean_rank += rank
-                    mrr += (1/(rank+1))
-                    if rank == 0:
-                        hits_at_1 += 1
-                    if rank < 10:
-                        hits_at_10 += 1
-                    if rank < 100:
-                        hits_at_100 += 1
-                                            
-                        
-        mean_rank /= test_subsumption_dl.dataset_len
-        mrr /= test_subsumption_dl.dataset_len
-        hits_at_1 /= test_subsumption_dl.dataset_len
-        hits_at_10 /= test_subsumption_dl.dataset_len
-        hits_at_100 /= test_subsumption_dl.dataset_len
-        return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
-
-
-    def test_filtered_rdf(self):
-        
-        print(f"Loading best model from {self.model_path}")
+    def test(self, existential_axioms, both_quantifiers):
+        """
+        :param existential_axioms: If ``True``, the test is done over existential axioms. If ``False``, the test is done over subsumption axioms between named classes. 
+        :type existential_axioms: bool
+        :param both_quantifiers: If ``True``, the test is done by ranking over axioms with existential and universal axioms. If ``False``, the test only considers existential axioms.
+        :type both_quantifiers: bool
+        """
         print("\nTesting")
-        self.model.load_state_dict(th.load(self.model_path))
-        self.model = self.model.to(self.device)
+        print(f"\t\tBoth quantifiers: {both_quantifiers}")
+        print(f"\t\tExistential axioms: {existential_axioms}")
 
-        test_subsumption_dl = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
-                    
-        self.model.eval()
-                                                
-        num_ontology_classes = len(self.ontology_classes_idxs)
-
-        print("Number of classes:", num_ontology_classes)
-
-        hits_at_1 = 0
-        hits_at_10 = 0
-        hits_at_100 = 0
-        
-        mean_rank = 0
-        mrr = 0
-
-        test_set = dict()
-        all_classes = th.tensor(list(self.ontology_classes_idxs), dtype=th.long, device=self.device)
-        print("Getting filtering data...")
-        for heads, rels, tails in tqdm(test_subsumption_dl):
-            for i, head in enumerate(heads):
-                h = th.where(all_classes == head)[0].item()
-                r = rels[i].item()
-                t = th.where(all_classes == tails[i])[0].item()
-                
-                if (h,r) not in test_set:
-                    test_set[(h,r)] = set()
-                test_set[(h,r)].add(t)
-        
-        
-        print("Testing...")
-        with th.no_grad():
-            for heads, rels, tails in tqdm(test_subsumption_dl):
-                                                    
-                aux = heads.to(self.device)
-                num_heads = len(heads)
-                
-                heads = heads.to(self.device)
-                heads = heads.repeat(num_ontology_classes,1).T
-
-                heads = heads.reshape(-1)
-                
-                rels = rels.to(self.device)
-                rels_rep = rels.repeat(num_ontology_classes,1).T
-                rels_rep = rels_rep.reshape(-1)
-                                                
-                eval_tails = self.ontology_classes_idxs.repeat(num_heads)
-                                
-                somevaluesfrom_relation_id = self.relation_to_id['http://www.w3.org/2002/07/owl#someValuesFrom']
-                somevaluesfrom = somevaluesfrom_relation_id * th.ones_like(rels_rep)
-
-                data1 = (heads, somevaluesfrom, eval_tails)
-                logits1 = self.model.forward(data1, mode="kg")
-                logits1 = logits1.reshape(num_heads, num_ontology_classes)
-
-                data2 = (rels_rep, somevaluesfrom, eval_tails)
-                logits2 = self.model.forward(data2, mode="kg")
-                logits2 = logits2.reshape(num_heads, num_ontology_classes)
-
-                logits = logits1 + logits2
-                                                                
-                tails = tails.to(self.device)
-                for i, head in enumerate(aux):
-                    head_id = th.where(all_classes==head)[0].item()
-                    rel_id = rels[i].item()
-                    for cand_tail in list(test_set[(head_id, rel_id)]):
-                        if cand_tail == tails[i].item():
-                            continue
-                        logits[i, cand_tail] = -1e9
-
-                orderings = th.argsort(logits, dim=1, descending=True)
-
-                all_classes_repeated = all_classes.repeat(len(tails),1)
-                tail_ids = th.nonzero(all_classes_repeated == tails.to(self.device).unsqueeze(1), as_tuple=False)[:,1]
-                                                                            
-                ranks = th.nonzero(orderings == tail_ids.unsqueeze(1), as_tuple=False)[:,1]
-
-                for rank in ranks:
-                    rank = rank.item()
-                    mean_rank += rank
-                    mrr += (1/(rank+1))
-                    if rank == 0:
-                        hits_at_1 += 1
-                    if rank < 10:
-                        hits_at_10 += 1
-                    if rank < 100:
-                        hits_at_100 += 1
-                                            
-                        
-        mean_rank /= test_subsumption_dl.dataset_len
-        mrr /= test_subsumption_dl.dataset_len
-        hits_at_1 /= test_subsumption_dl.dataset_len
-        hits_at_10 /= test_subsumption_dl.dataset_len
-        hits_at_100 /= test_subsumption_dl.dataset_len
-        return mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100
-
-
-
+        print("Computing predictions...")
+        preds, trlabels = self.get_preds_and_labels(existential_axioms, both_quantifiers)
+        print("Computing metrics...")
+        raw_metrics, filtered_metrics = self.compute_ranking_metrics(preds, trlabels)
+        return raw_metrics, filtered_metrics
         
                 
 
