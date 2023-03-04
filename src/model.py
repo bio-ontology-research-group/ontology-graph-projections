@@ -546,8 +546,8 @@ class Model():
                     trlabels[rel_id][head_ont_id][tail_ont_id] = 10000
 
         with th.no_grad():
-            for eval_rel_idx in self.eval_relations.values():
-                for (head_idxs,) in tqdm(self.prediction_dataloader(), desc=f"Getting predictions for relation {self.ontology_relations[eval_rel_idx]}"):
+            for eval_rel_name, eval_rel_idx in self.eval_relations.items():
+                for (head_idxs,) in tqdm(self.prediction_dataloader(), desc=f"Getting predictions for relation {eval_rel_name}"):
                     aux = head_idxs.to(self.device)
 
                     num_head_idxs = len(head_idxs)
@@ -557,7 +557,7 @@ class Model():
 
                     head_idxs = head_idxs.reshape(-1)
                     #assert (head_idxs[:num_testing_tails] == aux[0]).all(), f"{head_idxs[:num_testing_tails]}, {aux[0]}"
-                    rel_idx = self.ontology_relations_idxs[eval_rel_idx]
+                    rel_idx = eval_rel_idx
                     rel_idxs = rel_idx * th.ones_like(head_idxs)
 
                     eval_tails = all_tail_idxs.repeat(num_head_idxs)
@@ -611,7 +611,7 @@ class Model():
                     tail = th.where(self.ontology_classes_idxs == graph_tail)[0]
 
                     rel = rel_idxs[i]
-                    eval_rel = th.where(self.ontology_relations_idxs == rel)[0]
+                    eval_rel = self.eval_relations[self.id_to_relation[rel.item()]]
                     preds = predictions[eval_rel][head]
 
                     trlabels = training_labels[eval_rel][head]
