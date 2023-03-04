@@ -359,8 +359,8 @@ class Model():
             rel_idx = self.relation_to_id[rel_name[self.graph_type]]
             rels = rel_idx * th.ones_like(heads)
         else:
-            print(self.relation_to_id)
-            if self.graph_type == "rdf":
+            
+            if self.graph_type == "rdf" and self.test_existential:
                 rels = [self.class_to_id[r] for r in tuples["relation"]]
             else:
                 rels = [self.relation_to_id[r] for r in tuples["relation"]]
@@ -536,7 +536,7 @@ class Model():
                 for i, head_graph_id in enumerate(head_idxs):
                     head_ont_id = th.where(self.ontology_classes_idxs == head_graph_id)[0]
                     rel = rel_idxs[i]
-                    if self.graph_type == 'rdf':
+                    if self.graph_type == 'rdf' and self.test_existential:
                         graph_rel_name = self.id_to_class[rel.item()]    
                     else:
                         graph_rel_name = self.id_to_relation[rel.item()]
