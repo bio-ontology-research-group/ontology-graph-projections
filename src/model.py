@@ -340,6 +340,8 @@ class Model():
     def create_subsumption_dataloader(self, tuples_path, batch_size):
         tuples = pd.read_csv(tuples_path, sep=",", header=None)
         num_cols = tuples.shape[1]
+
+                
         if num_cols == 2:
             tuples.columns = ["head", "tail"]
         elif num_cols == 3:
@@ -493,8 +495,6 @@ class Model():
         num_testing_tails = num_testing_heads
         
         subsumption_relation = rel_name[self.graph_type]
-        rel_to_eval_id = {subsumption_relation: self.relation_to_id[subsumption_relation]}
-
         
         self.eval_relations = {subsumption_relation: 0} # this variable is defined here for the first time and it is used later in compute_ranking_metrics function
         
@@ -502,17 +502,14 @@ class Model():
             num_relations = len(self.ontology_relations_idxs)
             assert num_relations > 1, f"Number of relations: {num_relations}"
 
-            rel_to_eval_id = {rel: idx for idx, rel in enumerate(self.ontology_relations)}
                                                         
             self.eval_relations = dict(zip(self.ontology_relations, range(num_relations)))
             if  both_quantifiers:
                 num_testing_tails *= 2
 
-        num_relations = len(rel_to_eval_id)
         num_eval_relations = len(self.eval_relations)
         logging.debug(f"num_testing_heads: {num_testing_heads}")
         logging.debug(f"num_testing_tails: {num_testing_tails}")
-        logging.debug(f"num_relations: {num_relations}")
         logging.debug(f"num_eval_relations: {num_eval_relations}")
 
             
@@ -549,7 +546,7 @@ class Model():
                     trlabels[rel_id][head_ont_id][tail_ont_id] = 10000
 
         with th.no_grad():
-            for eval_rel_idx in rel_to_eval_id.values():
+            for eval_rel_idx in self.eval_relations.values():
                 for (head_idxs,) in tqdm(self.prediction_dataloader(), desc=f"Getting predictions for relation {self.ontology_relations[eval_rel_idx]}"):
                     aux = head_idxs.to(self.device)
 

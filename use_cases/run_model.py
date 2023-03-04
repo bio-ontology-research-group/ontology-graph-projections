@@ -106,12 +106,12 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
         params = (emb_dim, margin, weight_decay, batch_size, lr)
 
         if test_subsumption:
-            "Start testing subsumption"
+            print("Start testing subsumption")
             raw_metrics, filtered_metrics = model.test(False, False)
             save_results(params, raw_metrics, filtered_metrics, result_dir)
                                                                                                                 
         if test_existential:
-            "Start testing existential"
+            print("Start testing existential")
             if not test_both_quantifiers:
                 raw_metrics, filtered_metrics = model.test(True, False)
                 save_results(params, raw_metrics, filtered_metrics, result_dir)
