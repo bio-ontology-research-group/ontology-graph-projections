@@ -513,7 +513,7 @@ class Model():
         logging.debug(f"num_eval_relations: {num_eval_relations}")
 
             
-        trlabels = np.ones((num_eval_relations, num_testing_heads, num_testing_tails))
+        trlabels = np.ones((num_eval_relations, num_testing_heads, num_testing_tails), dtype=np.int16)
 
         logging.debug(f"trlabels.shape: {trlabels.shape}")
         
