@@ -7,6 +7,8 @@ import click as ck
 import os
 from src.model import Model
 from src.utils import seed_everything
+import gc
+import torch as th
 
 @ck.command()
 @ck.option('--use-case', '-case', required=True, type=ck.Choice(["foodon", "go", "hpo", "go_link_pred", "foodon_link_pred"]))
@@ -23,6 +25,7 @@ from src.utils import seed_everything
 @ck.option('--epochs', '-e', required=True, type=int, default=300)
 @ck.option('--test-subsumption', '-ts', is_flag=True)
 @ck.option('--test-existential', '-te', is_flag=True)
+@ck.option('--test-both-quantifiers', '-tbq', is_flag=True)
 @ck.option('--reduced_subsumption', '-rs', is_flag=True)
 @ck.option('--reduced_existential', '-re', is_flag=True)
 @ck.option('--test_file', '-tf', required=True, type=ck.Path(exists=True))
@@ -33,6 +36,7 @@ from src.utils import seed_everything
 @ck.option('--result-dir', '-rd', required=True)
 def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batch_size, lr, test_batch_size, num_negs, epochs,
          test_subsumption, test_existential,
+         test_both_quantifiers,
          reduced_subsumption, reduced_existential, test_file, device, seed, only_train, only_test, result_dir):
 
     if not result_dir.endswith('.csv'):
@@ -63,6 +67,7 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
     print("\tepochs: ", epochs)
     print("\ttest_subsumption: ", test_subsumption)
     print("\ttest_existential: ", test_existential)
+    print("\ttest_both_quantifiers: ", test_both_quantifiers)
     print("\treduced_subsumption: ", reduced_subsumption)
     print("\treduced_existential: ", reduced_existential)
     print("\ttest_file: ", test_file)
@@ -97,44 +102,33 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
         model.train()
 
     if not only_train:
-        result_dir_filtered = result_dir.replace('.csv', '_filtered.csv')
         assert os.path.exists(test_file)
+        params = (emb_dim, margin, weight_decay, batch_size, lr)
 
         if test_subsumption:
+            "Start testing subsumption"
             raw_metrics, filtered_metrics = model.test(False, False)
-            mr, mrr, h1, h10, h100 = raw_metrics
-            mr_f, mrr_f, h1_f, h10_f, h100_f = filtered_metrics
-            with open(result_dir, 'a') as f:
-                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr},{mrr},{h1},{h10},{h100}\n"
-                f.write(line)
-            with open(result_dir_filtered, 'a') as f:
-                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr_f},{mrr_f},{h1_f},{h10_f},{h100_f}\n"
-                f.write(line)
-
+            save_results(params, raw_metrics, filtered_metrics, result_dir)
+                                                                                                                
         if test_existential:
-            raw_metrics, filtered_metrics = model.test(True, False)
-            mr, mrr, h1, h10, h100 = raw_metrics
-            mr_f, mrr_f, h1_f, h10_f, h100_f = filtered_metrics
-            with open(result_dir, 'a') as f:
-                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr},{mrr},{h1},{h10},{h100}\n"
-                f.write(line)
-            with open(result_dir_filtered, 'a') as f:
-                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr_f},{mrr_f},{h1_f},{h10_f},{h100_f}\n"
-                f.write(line)
+            "Start testing existential"
+            if not test_both_quantifiers:
+                raw_metrics, filtered_metrics = model.test(True, False)
+                save_results(params, raw_metrics, filtered_metrics, result_dir)
 
-            result_dir_both_quants = result_dir.replace('.csv', '_both_quants.csv')
-            result_dir_both_quants_filtered = result_dir.replace('.csv', '_both_quants_filtered.csv')
-            raw_metrics, filtered_metrics = model.test(True, True)
-            mr, mrr, h1, h10, h100 = raw_metrics
-            mr_f, mrr_f, h1_f, h10_f, h100_f = filtered_metrics
-            with open(result_dir_both_quants, 'a') as f:
-                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr},{mrr},{h1},{h10},{h100}\n"
-                f.write(line)
-            with open(result_dir_both_quants_filtered, 'a') as f:
-                line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr_f},{mrr_f},{h1_f},{h10_f},{h100_f}\n"
-                f.write(line)
+            else:
+                result_dir_both_quants = result_dir.replace('.csv', '_both_quants.csv')
+                raw_metrics, filtered_metrics = model.test(True, True)
+                save_results(params, raw_metrics, filtered_metrics, result_dir_both_quants)
+                                                                                                                
 
- 
+def save_results(params, raw_metrics, filtered_metrics, result_dir):
+    emb_dim, margin, weight_decay, batch_size, lr = params
+    mr, mrr, h1, h10, h100, auc = raw_metrics
+    mr_f, mrr_f, h1_f, h10_f, h100_f, auc_f = filtered_metrics
+    with open(result_dir, 'a') as f:
+        line = f"{emb_dim},{margin},{weight_decay},{batch_size},{lr},{mr},{mrr},{h1},{h10},{h100},{auc},{mr_f},{mrr_f},{h1_f},{h10_f},{h100_f},{auc_f}\n"
+        f.write(line)
         
 if __name__ == "__main__":
     main()
