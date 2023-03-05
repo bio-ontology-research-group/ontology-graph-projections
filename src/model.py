@@ -33,7 +33,7 @@ rel_name = {
     "taxonomy": "http://subclassof",
     "dl2vec": "http://subclassof",
     "onto2graph": "http://www.w3.org/2000/01/rdf-schema#subClassOf",
-    "owl2vec": "http://www.w3.org/2000/01/rdf-schema#subClassOf",
+    "owl2vec": "http://subclassof",
     "rdf": "http://www.w3.org/2000/01/rdf-schema#subClassOf"
 }
 
