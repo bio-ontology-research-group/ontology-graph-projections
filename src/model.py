@@ -297,6 +297,7 @@ class Model():
         eval_relations = pd.read_csv(self.relations_path, sep=",", header=None)
         eval_relations.columns = ["relations"]
         eval_relations = eval_relations["relations"].values
+        eval_relations = [r for r in eval_relations if r in self.relation_to_id]
         eval_relations.sort()
 
         self._ontology_relations = eval_relations
@@ -319,6 +320,7 @@ class Model():
         
         logging.info(f"Number of ontology relations found in projection: {len(eval_rel_to_id)}")
         ontology_relations_idxs = th.tensor(list(eval_rel_to_id.values()), dtype=th.long, device=self.device)
+        #assert len(self.ontology_relations) == len(ontology_relations_idxs), f"Number of ontology relations found in projection ({len(ontology_relations_idxs)}) does not match number of relations in ontology ({len(self.ontology_relations)})"
         self._ontology_relations_idxs = ontology_relations_idxs
         return self._ontology_relations_idxs
 
@@ -538,7 +540,11 @@ class Model():
                         graph_rel_name = self.id_to_class[rel.item()]    
                     else:
                         graph_rel_name = self.id_to_relation[rel.item()]
-                    rel_id = self.eval_relations[graph_rel_name]
+                    try:
+                        rel_id = self.eval_relations[graph_rel_name]
+                    except Exception as e:
+                        print(self.eval_relations)
+                        raise e
                     tail_graph_id = tail_idxs[i]
                     tail_ont_id = th.where(self.ontology_classes_idxs == tail_graph_id)[0]
                     trlabels[rel_id][head_ont_id][tail_ont_id] = 10000
