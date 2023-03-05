@@ -553,10 +553,10 @@ class Model():
         num_heads = len(heads)
                 
         heads = heads.to(self.device)
-        heads = heads.repeat(len(self.ontology_classes_idxs)).T
-
+        heads = heads.repeat(len(self.ontology_classes_idxs),1).T
+        assert (heads[0,:] == aux[0]).all(), f"{heads[0,:]}, {aux[0]}"
         heads = heads.reshape(-1)
-        
+        assert (aux[0] == heads[:num_heads]).all(), "heads are not the same"
         rels = rels.to(self.device)
         rels = rels.repeat(len(self.ontology_classes_idxs),1).T
         rels = rels.reshape(-1)
@@ -604,7 +604,7 @@ class Model():
                     tail = th.where(self.ontology_classes_idxs == graph_tail)[0]
 
                     rel = rel_idxs[i]
-                    if self.graph_type == "rdf":
+                    if self.graph_type == "rdf" and self.test_existential:
                         eval_rel = self.eval_relations[self.id_to_class[rel.item()]]
                     else:
                         eval_rel = self.eval_relations[self.id_to_relation[rel.item()]]
