@@ -297,6 +297,11 @@ class Model():
         eval_relations = pd.read_csv(self.relations_path, sep=",", header=None)
         eval_relations.columns = ["relations"]
         eval_relations = eval_relations["relations"].values
+        if self.graph_type == "rdf":
+            eval_relations = [r for r in eval_relations if r in self.class_to_id]
+        else:
+            eval_relations = [r for r in eval_relations if r in self.relation_to_id]
+
         eval_relations.sort()
 
         self._ontology_relations = eval_relations
@@ -312,7 +317,7 @@ class Model():
         eval_relations = eval_relations["relations"].values.tolist()
         eval_relations.sort()
 
-        if self.graph_type == "rdf":
+        if self.graph_type == "rdf" and self.test_existential:
             eval_rel_to_id = {c: self.class_to_id[c] for c in eval_relations if c in self.class_to_id}
         else:
             eval_rel_to_id = {c: self.relation_to_id[c] for c in eval_relations if c in self.relation_to_id}
