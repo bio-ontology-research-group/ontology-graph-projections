@@ -15,6 +15,7 @@ from tqdm import trange, tqdm
 
 from mowl.owlapi.defaults import BOT, TOP
 import logging
+import pickle
 logging.basicConfig(level=logging.DEBUG)
 
 prefix = {
@@ -107,6 +108,8 @@ class Model():
         self._graph = None
         self._class_to_id = None
         self._relation_to_id = None
+        self._id_to_class = None
+        self._id_to_relation = None
         
         self._inferred_ancestors = None
         self._inferred_ancestors_tensor = None
@@ -176,7 +179,12 @@ class Model():
 
     @property
     def id_to_class(self):
-        return {v: k for k, v in self.class_to_id.items()}
+        if self._id_to_class is not None:
+            return self._id_to_class
+        
+        id_to_class =  {v: k for k, v in self.class_to_id.items()}
+        self._id_to_class = id_to_class
+        return self._id_to_class
     
     @property
     def relation_to_id(self):
@@ -191,7 +199,12 @@ class Model():
 
     @property
     def id_to_relation(self):
-        return {v: k for k, v in self.relation_to_id.items()}
+        if self._id_to_relation is not None:
+            return self._id_to_relation
+
+        id_to_relation = {v: k for k, v in self.relation_to_id.items()}
+        self._id_to_relation = id_to_relation
+        return self._id_to_relation
 
     @property
     def graph_path(self):
@@ -255,7 +268,7 @@ class Model():
 
     @property
     def relations_path(self):
-        path = os.path.join(self.root, "relations.txt")
+        path = os.path.join(self.root, "common_relations.txt")
         assert os.path.exists(path), f"Relations file {path} does not exist"
         return path
 
@@ -297,6 +310,7 @@ class Model():
         eval_relations = pd.read_csv(self.relations_path, sep=",", header=None)
         eval_relations.columns = ["relations"]
         eval_relations = eval_relations["relations"].values
+
         if self.graph_type == "rdf":
             eval_relations = [r for r in eval_relations if r in self.class_to_id]
         else:
@@ -324,6 +338,7 @@ class Model():
         
         logging.info(f"Number of ontology relations found in projection: {len(eval_rel_to_id)}")
         ontology_relations_idxs = th.tensor(list(eval_rel_to_id.values()), dtype=th.long, device=self.device)
+        #assert len(self.ontology_relations) == len(ontology_relations_idxs), f"Number of ontology relations found in projection ({len(ontology_relations_idxs)}) does not match number of relations in ontology ({len(self.ontology_relations)})"
         self._ontology_relations_idxs = ontology_relations_idxs
         return self._ontology_relations_idxs
 
@@ -493,7 +508,7 @@ class Model():
           return logits
 
     def get_training_labels(self, existential_axioms, both_quantifiers):
-                                                    
+
         logging.info("Getting predictions and labels")
 
         num_testing_heads = len(self.ontology_classes_idxs)
@@ -521,12 +536,7 @@ class Model():
         trlabels = np.ones((num_eval_relations, num_testing_heads, num_testing_tails), dtype=np.int16)
 
         logging.debug(f"trlabels.shape: {trlabels.shape}")
-        
-        self.model.load_state_dict(th.load(self.model_path))
-        self.model = self.model.to(self.device)
-        self.model.eval()
-        
-        logging.info("Model loaded")
+                
         all_head_idxs = self.ontology_classes_idxs.to(self.device)
         all_tail_idxs = self.ontology_classes_idxs.to(self.device)
         eval_rel_idx = None
@@ -543,12 +553,15 @@ class Model():
                         graph_rel_name = self.id_to_class[rel.item()]    
                     else:
                         graph_rel_name = self.id_to_relation[rel.item()]
-                    rel_id = self.eval_relations[graph_rel_name]
+                    try:
+                        rel_id = self.eval_relations[graph_rel_name]
+                    except Exception as e:
+                        print(self.eval_relations)
+                        raise e
                     tail_graph_id = tail_idxs[i]
                     tail_ont_id = th.where(self.ontology_classes_idxs == tail_graph_id)[0]
                     trlabels[rel_id][head_ont_id][tail_ont_id] = 10000
 
-        
         return trlabels
 
 
@@ -663,22 +676,24 @@ class Model():
             hits_at_1 /= testing_dataloader.dataset_len
             hits_at_10 /= testing_dataloader.dataset_len
             hits_at_100 /= testing_dataloader.dataset_len
-            auc = self.compute_rank_roc(ranks)
+            auc = self.compute_rank_roc(ranks, both_quantifiers)
 
             filtered_mean_rank /= testing_dataloader.dataset_len
             filtered_mrr /= testing_dataloader.dataset_len
             fhits_at_1 /= testing_dataloader.dataset_len
             fhits_at_10 /= testing_dataloader.dataset_len
             fhits_at_100 /= testing_dataloader.dataset_len
-            fauc = self.compute_rank_roc(filtered_ranks)
+            fauc = self.compute_rank_roc(filtered_ranks, both_quantifiers)
 
             raw_metrics = (mean_rank, mrr, hits_at_1, hits_at_10, hits_at_100, auc)
             filtered_metrics = (filtered_mean_rank, filtered_mrr, fhits_at_1, fhits_at_10, fhits_at_100, fauc)
         return raw_metrics, filtered_metrics
 
 
-    def compute_rank_roc(self, ranks):
+    def compute_rank_roc(self, ranks, both_quantifiers):
         n_tails = len(self.ontology_classes_idxs)
+        if both_quantifiers:
+            n_tails *= 2
         auc_x = list(ranks.keys())
         auc_x.sort()
         auc_y = []

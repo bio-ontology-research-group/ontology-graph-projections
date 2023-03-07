@@ -112,11 +112,11 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
                                                                                                                 
         if test_existential:
             print("Start testing existential")
-            if not test_both_quantifiers:
-                raw_metrics, filtered_metrics = model.test(True, False)
-                save_results(params, raw_metrics, filtered_metrics, result_dir)
 
-            else:
+            raw_metrics, filtered_metrics = model.test(True, False)
+            save_results(params, raw_metrics, filtered_metrics, result_dir)
+
+            if test_both_quantifiers:
                 result_dir_both_quants = result_dir.replace('.csv', '_both_quants.csv')
                 raw_metrics, filtered_metrics = model.test(True, True)
                 save_results(params, raw_metrics, filtered_metrics, result_dir_both_quants)
