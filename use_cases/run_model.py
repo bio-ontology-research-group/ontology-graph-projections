@@ -29,7 +29,7 @@ import torch as th
 @ck.option('--reduced_subsumption', '-rs', is_flag=True)
 @ck.option('--reduced_existential', '-re', is_flag=True)
 @ck.option('--test_file', '-tf', required=True, type=ck.Path(exists=True))
-@ck.option('--device', '-d', required=True, type=ck.Choice(['cpu', 'cuda']))
+@ck.option('--device', '-d', required=True, type=ck.Choice(['cpu', 'cuda', 'cuda:0', 'cuda:1', 'cuda:2', 'cuda:3', 'cuda:4', 'cuda:5', 'cuda:6', 'cuda:7']))
 @ck.option('--seed', '-s', required=True, type=int, default=42)
 @ck.option("--only_train", '-otr', is_flag=True)
 @ck.option("--only_test", '-ot', is_flag=True)

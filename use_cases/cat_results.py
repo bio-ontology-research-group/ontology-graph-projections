@@ -49,6 +49,4 @@ if __name__ == "__main__":
     reduced = sys.argv[5]
     both_quants = sys.argv[6]
     cat_results(directory, case, graph, test, reduced, both_quants)
-    
-
 
