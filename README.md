@@ -47,7 +47,7 @@ Provide an overview of the directory structure and files, for example:
  
 ```
 
-## Running instructions
+## Setting up
 
 ### Dependencies
 - Python 3.8
@@ -64,6 +64,11 @@ conda activate projections
 
 cd use_cases
 ```
+
+### Getting the data
+
+The data is (will be) located in the release section of this repository. You will find `go_data.tar.gz` for GO and `foodon_data.tar.gz` for FoodOn. Uncompress and place the files in `use_cases/go/data/` for GO and `use_cases/foodon/data` for FoodOn.
+
 
 ## Running the model
 
