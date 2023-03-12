@@ -1,7 +1,31 @@
-# Ontologies as graphs: an analysis on the properties of graph projections on axiom inference
+# From axioms over graphs to vectors, and back again: evaluating the properties of graph-based ontology embeddings
 
+## Abstract: 
+
+Several approaches have been developed that generate embeddings for Description Logic ontologies and
+use these embeddings in machine learning. One approach of generating ontologies embeddings is by
+first embedding the ontologies into a graph structure, i.e., introducing a set of nodes and edges for named
+entities and logical axioms, and then applying a graph embedding to embed the graph in R 𝑛 . Methods
+that embed ontologies in graphs (graph projections) have different formal properties related to the type
+of axioms they can utilize, whether the projections are invertible or not, and whether they can be applied
+to asserted axioms or their deductive closure. We analyze several graph projection methods that have
+been used to embed ontologies qualitatively and quantitatively, and we demonstrate the effect of the
+properties of graph projections on the performance of predicting axioms from ontology embeddings. We
+find that there are substantial differences between different projection methods, and both the projection
+of axioms into nodes and edges as well ontological choices in representing knowledge will impact the
+success of using ontology embeddings to predict axioms.
 
 ## Method and results
+
+The projections used in this analyses were:
+
+* Onto2Graph projection
+* Projection found in OWL2Vec*
+* RDF rendering of OWL
+
+The ontologies used were:
+* Gene Ontology (GO)
+* Food Ontology (FoodOn)
 	
 ## Repository overview
 
@@ -73,9 +97,6 @@ For example, to train the Gene Ontology reduced version with the taxonomy projec
 python run_model.py -case go -g taxonomy -r go/data -dim 64 -m 0.2 -wd 0.0001 -bs 4096 -lr 0.1 -tbs 8 -e 4000 -d cuda -rd results_tax_sub.csv -tf foodon/data/go_subsumption_closure_filtered.csv -ts -rs
 ```
 
-## More resources
 
-
-## About
 
 
