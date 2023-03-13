@@ -14,7 +14,7 @@ import torch as th
 @ck.command()
 @ck.option('--use-case', '-case', required=True, type=ck.Choice(["foodon", "go", "hpo", "go_link_pred", "foodon_link_pred"]))
 @ck.option('--graph-type', '-g', required=True, type=ck.Choice(['rdf', "owl2vec", "taxonomy", "dl2vec", 'onto2graph']))
-@ck.option('--kge-model', '-kge', required=True, type=ck.Choice(['transe', 'transd']))
+@ck.option('--kge-model', '-kge', required=True, type=ck.Choice(['transe', 'transr']))
 @ck.option('--root', '-r', required=True, type=ck.Path(exists=True))
 @ck.option('--emb-dim', '-dim', required=True, type=int, default=256)
 @ck.option('--p-norm', '-norm' , required=True, type=int, default=2)

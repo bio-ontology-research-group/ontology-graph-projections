@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 import torch.optim as optim
 import torch.nn as nn
 
-from pykeen.models import TransE
+from pykeen.models import TransE, TransD, TransR
 from pykeen.triples import TriplesFactory
 
 from tqdm import trange, tqdm
@@ -50,9 +50,10 @@ class ProjectionModule(nn.Module):
                                      embedding_dim=self.embedding_dim,
                                      scoring_fct_norm=2, #self.p_norm, # Trans[E,R]
                                      random_seed = self.random_seed)
-        elif kge_model == "transd":
-            self.kg_module =  TransD(triples_factory=self.triples_factory,
+        elif kge_model == "transr":
+            self.kg_module =  TransR(triples_factory=self.triples_factory,
                                      embedding_dim=self.embedding_dim,
+                                     scoring_fct_norm=2, #self.p_norm, # Trans[E,R]
                                      random_seed = self.random_seed)
        
 
