@@ -38,7 +38,8 @@ Provide an overview of the directory structure and files, for example:
 │   ├── data
 │   ├── projectors
 └── use_cases
-    ├── foodon
+    ├── experiments
+	├── foodon
     │   ├── data
     │   └── models
     └── go
@@ -78,6 +79,7 @@ To run the script, use the ``run_model.py`` script. The parameters are the follo
 |-----------------------|--------------|---------------------------------------------------------------------------------------|
 | case                  | -case        | go, foodon                                                                            |
 | graph                 | -g           | taxonomy, owl2vec, onto2graph, rdf                                                    |
+| kge model             | -kge         | transe, transr                                                                        |
 | root directory        | -r           | [case]/data                                                                           |
 | embedding dimension   | -dim         | 64, 128, 256                                                                          |
 | margin                | -margin      | 0.0, 0.2, 0.4                                                                         |
@@ -99,8 +101,9 @@ To run the script, use the ``run_model.py`` script. The parameters are the follo
 
 For example, to train the Gene Ontology reduced version with the taxonomy projection, we can run
 ```
-python run_model.py -case go -g taxonomy -r go/data -dim 64 -m 0.2 -wd 0.0001 -bs 4096 -lr 0.1 -tbs 8 -e 4000 -d cuda -rd results_tax_sub.csv -tf foodon/data/go_subsumption_closure_filtered.csv -ts -rs
+python run_model.py -case go -g taxonomy -kge transe -r go/data -dim 64 -m 0.2 -wd 0.0001 -bs 4096 -lr 0.1 -tbs 8 -e 4000 -d cuda -rd results_tax_sub.csv -tf foodon/data/go_subsumption_closure_filtered.csv -ts -rs
 ```
+The commands to run the experiments in the paper are located at `use_cases/experiments`
 
 
 
