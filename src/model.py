@@ -40,16 +40,23 @@ rel_name = {
 
 
 class ProjectionModule(nn.Module):
-    def __init__(self, triples_factory, embedding_dim, random_seed):
+    def __init__(self, kge_model, triples_factory, embedding_dim, random_seed):
         super().__init__()
         self.triples_factory = triples_factory
         self.embedding_dim = embedding_dim
         self.random_seed = random_seed
-        self.kg_module =  TransE(triples_factory=self.triples_factory,
-                                 embedding_dim=self.embedding_dim,
-                                 scoring_fct_norm=2, #self.p_norm, # Trans[E,R]
-                                 random_seed = self.random_seed)
-                        
+        if kge_model == "transe":
+            self.kg_module =  TransE(triples_factory=self.triples_factory,
+                                     embedding_dim=self.embedding_dim,
+                                     scoring_fct_norm=2, #self.p_norm, # Trans[E,R]
+                                     random_seed = self.random_seed)
+        elif kge_model == "transd":
+            self.kg_module =  TransD(triples_factory=self.triples_factory,
+                                     embedding_dim=self.embedding_dim,
+                                     random_seed = self.random_seed)
+       
+
+            
     def forward(self, data):
         h, r, t = data
         x = -self.kg_module.forward(h, r, t, mode=None)
@@ -60,9 +67,10 @@ class Model():
     def __init__(self,
                  use_case,
                  graph_type,
+                 kge_model,
                  root,
                  emb_dim = 32,
-                 p_norm = 1,
+                 p_norm = 2,
                  margin = 1,
                  weight_decay = 0,
                  batch_size = 128,
@@ -86,6 +94,7 @@ class Model():
         
         self.use_case = use_case
         self.graph_type = graph_type
+        self.kge_model = kge_model
         self.root = root
         self.emb_dim = emb_dim
         self.p_norm = p_norm
@@ -125,7 +134,8 @@ class Model():
         
         self._triples_factory = None
 
-        self.model = ProjectionModule(triples_factory=self.triples_factory,
+        self.model = ProjectionModule(kge_model,
+                                      triples_factory=self.triples_factory,
                                       embedding_dim=self.emb_dim,
                                       random_seed = self.seed
                                       )
@@ -237,6 +247,7 @@ class Model():
             return self._model_path
 
         params_str = f"{self.graph_type}"
+        params_str += f"_kge_{self.kge_model}"
         params_str += f".{self.reduced_subsumption}"
         params_str += f".{self.reduced_existential}"
         params_str += f"_dim{self.emb_dim}"

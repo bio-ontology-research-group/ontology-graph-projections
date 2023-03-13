@@ -1,5 +1,6 @@
 import sys
 sys.path.append('../')
+sys.path.append("../../")
 
 import mowl
 mowl.init_jvm("10g")
@@ -13,6 +14,7 @@ import torch as th
 @ck.command()
 @ck.option('--use-case', '-case', required=True, type=ck.Choice(["foodon", "go", "hpo", "go_link_pred", "foodon_link_pred"]))
 @ck.option('--graph-type', '-g', required=True, type=ck.Choice(['rdf', "owl2vec", "taxonomy", "dl2vec", 'onto2graph']))
+@ck.option('--kge-model', '-kge', required=True, type=ck.Choice(['transe', 'transd']))
 @ck.option('--root', '-r', required=True, type=ck.Path(exists=True))
 @ck.option('--emb-dim', '-dim', required=True, type=int, default=256)
 @ck.option('--p-norm', '-norm' , required=True, type=int, default=2)
@@ -34,7 +36,7 @@ import torch as th
 @ck.option("--only_train", '-otr', is_flag=True)
 @ck.option("--only_test", '-ot', is_flag=True)
 @ck.option('--result-dir', '-rd', required=True)
-def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batch_size, lr, test_batch_size, num_negs, epochs,
+def main(use_case, graph_type, kge_model, root, emb_dim, p_norm, margin, weight_decay, batch_size, lr, test_batch_size, num_negs, epochs,
          test_subsumption, test_existential,
          test_both_quantifiers,
          reduced_subsumption, reduced_existential, test_file, device, seed, only_train, only_test, result_dir):
@@ -55,6 +57,7 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
     print("Configuration:")
     print("\tuse_case: ", use_case)
     print("\tgraph_type: ", graph_type)
+    print("\tkge_model: ", kge_model)
     print("\troot: ", root)
     print("\temb_dim: ", emb_dim)
     print("\tp_norm: ", p_norm)
@@ -80,6 +83,7 @@ def main(use_case, graph_type, root, emb_dim, p_norm, margin, weight_decay, batc
     
     model = Model(use_case,
                   graph_type,
+                  kge_model,
                   root,
                   emb_dim = emb_dim,
                   p_norm = p_norm,
