@@ -12,7 +12,7 @@ import gc
 import torch as th
 
 @ck.command()
-@ck.option('--use-case', '-case', required=True, type=ck.Choice(["foodon", "go", "hpo", "go_link_pred", "foodon_link_pred"]))
+@ck.option('--use-case', '-case', required=True, type=ck.Choice(["foodon", "go"]))
 @ck.option('--graph-type', '-g', required=True, type=ck.Choice(['rdf', "owl2vec", "taxonomy", "dl2vec", 'onto2graph']))
 @ck.option('--kge-model', '-kge', required=True, type=ck.Choice(['transe', 'transr']))
 @ck.option('--root', '-r', required=True, type=ck.Path(exists=True))
@@ -31,7 +31,7 @@ import torch as th
 @ck.option('--reduced_subsumption', '-rs', is_flag=True)
 @ck.option('--reduced_existential', '-re', is_flag=True)
 @ck.option('--test_file', '-tf', required=True, type=ck.Path(exists=True))
-@ck.option('--device', '-d', required=True, type=ck.Choice(['cpu', 'cuda', 'cuda:0', 'cuda:1', 'cuda:2', 'cuda:3', 'cuda:4', 'cuda:5', 'cuda:6', 'cuda:7']))
+@ck.option('--device', '-d', required=True, type=ck.Choice(['cpu', 'cuda']))
 @ck.option('--seed', '-s', required=True, type=int, default=42)
 @ck.option("--only_train", '-otr', is_flag=True)
 @ck.option("--only_test", '-ot', is_flag=True)
