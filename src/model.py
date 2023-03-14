@@ -23,11 +23,11 @@ prefix = {
     "foodon": "foodon",
 }
 suffix = {
-    "taxonomy": "taxonomy.edgelist",
-    "dl2vec": "dl2vec.edgelist",
-    "onto2graph": "onto2graph.edgelist",
-    "owl2vec": "owl2vec.edgelist",
-    "rdf": "rdf.edgelist",
+    "taxonomy": "taxonomy.no.duplicates.edgelist",
+    "dl2vec": "dl2vec.no.duplicates.edgelist",
+    "onto2graph": "onto2graph.no.duplicates.edgelist",
+    "owl2vec": "owl2vec.no.duplicates.edgelist",
+    "rdf": "rdf.no.duplicates.edgelist",
 }
 
 rel_name = {
