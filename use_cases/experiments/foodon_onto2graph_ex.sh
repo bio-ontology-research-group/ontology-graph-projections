@@ -1,1 +1,1 @@
-python ../run_model.py -case foodon -kge transe -g onto2graph -r ../foodon/data -dim 256 -m 0.0 -wd 0.000 -bs 16384 -lr 0.01 -tbs 8 -e 4000 -d cuda -rd result_foodon_onto2graph_ex_transe.csv -tf ../foodon/data/foodon_existential_subsumption_closure_filtered_non_trivial.csv -te -tbq
+python ../run_model.py -case foodon -kge transe -g onto2graph -r ../foodon/data -dim 64 -m 0.0 -wd 0.000 -bs 16384 -lr 0.01 -tbs 8 -e 4000 -d cuda -rd result_foodon_onto2graph_ex_transe.csv -tf ../foodon/data/foodon_existential_subsumption_closure_filtered_non_trivial_no_leakage.csv -te -tbq

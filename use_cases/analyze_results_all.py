@@ -2,7 +2,7 @@ import pandas as pd
 import sys
 import click as ck
 
-def analyze_result_metric(file_path, metric, criterion="max", auc_threshold=0.7, h1_threshold=0.1):
+def analyze_result_metric(file_path, metric, criterion="max", auc_threshold=None, h1_threshold=None):
     #header = ["embed_dim", "margin", "reg", "batch_size", "lr", "mr", "mrr", "h1", "h10", "h100","auc"]
     header = ["embed_dim", "margin", "reg", "batch_size", "lr", "mr", "mrr", "h1", "h10", "h100","auc", "fmr", "fmrr", "fh1", "fh10", "fh100", "fauc"]
 
@@ -53,7 +53,7 @@ def get_graph_metrics(filename, auc_threshold, h1_threshold):
         all_res = all_res.reindex(columns=swap_list)
         print(all_res)
     else:
-        best_h1 = analyze_result_metric(filename, "fh1", auc_threshold=auc_threshold, h1_threshold=h1_threshold)
+        best_h1 = analyze_result_metric(filename, "auc", auc_threshold=auc_threshold, h1_threshold=h1_threshold)
         all_res = best_h1
         swap_list = ["embed_dim", "margin", "reg", "batch_size", "lr", "mrr", "mr", "h1", "h10", "h100", "auc", "fmrr", "fmr", "fh1", "fh10", "fh100", "fauc"]
         all_res = all_res.reindex(columns=swap_list)
