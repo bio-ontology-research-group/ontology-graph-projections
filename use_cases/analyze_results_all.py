@@ -8,7 +8,7 @@ def analyze_result_metric(file_path, metric, criterion="max", auc_threshold=None
 
     df = pd.read_csv(filename, header=None, names=header)
     df = df[df["auc"] > auc_threshold]
-    df = df[df['h1'] > h1_threshold]
+    #df = df[df['h1'] > h1_threshold]
                                                         
     if criterion == "max":
         best = df.loc[df[metric].idxmax()].to_frame().T
