@@ -68,7 +68,19 @@ cd use_cases
 
 ### Getting the data
 
-The data is (will be) located in the release section of this repository. You will find `go_data.tar.gz` for GO and `foodon_data.tar.gz` for FoodOn. Uncompress and place the files in `use_cases/go/data/` for GO and `use_cases/foodon/data` for FoodOn.
+The data is located in the `use_cases` directory. You will find the files `use_cases/go/go_data.tar.gz` for GO and `use_cases/foodon/foodon_data.tar.gz` for FoodOn. Uncompress the files with:
+
+```
+cd use_cases/go/
+tar -xzvf go_data.tar.gz
+```
+
+and 
+
+```
+cd use_cases/foodon/
+tar -xzvf foodon_data.tar.gz
+```
 
 
 ## Running the model
