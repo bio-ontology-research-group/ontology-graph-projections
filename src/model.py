@@ -582,11 +582,13 @@ class Model():
                         graph_rel_name = self.id_to_class[rel.item()]    
                     else:
                         graph_rel_name = self.id_to_relation[rel.item()]
-                    try:
+
+                    if graph_rel_name in self.eval_relations:
                         rel_id = self.eval_relations[graph_rel_name]
-                    except Exception as e:
-                        print(self.eval_relations)
-                        raise e
+                    else:
+                        continue
+
+                    
                     tail_graph_id = tail_idxs[i]
                     tail_ont_id = th.where(self.ontology_classes_idxs == tail_graph_id)[0]
                     trlabels[rel_id][head_ont_id][tail_ont_id] = 10000
