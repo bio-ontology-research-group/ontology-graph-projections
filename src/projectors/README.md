@@ -6,8 +6,6 @@ To project an ontology, use the following command:
 python [projector_name].py -i /path/to/ontology_name.owl
 ```
 Projector names are:
- - taxonomy
- - dl2vec
  - owl2vec
  - onto2graph
  - rdf
@@ -18,3 +16,5 @@ In the particular case of Onto2Graph, the command receives an extra parameter in
 ```
 python onto2graph_projector.py -i /path/to/ontology_name.owl -j /path/to/jar_file
  ```
+
+You can check the `tests/tests_projectors.py` to see examples of how to call the projectors.
