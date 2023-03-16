@@ -267,6 +267,17 @@ class Model():
         return self._model_path
 
     @property
+    def deductive_closure_path(self):
+        if self.test_subsumption:
+            filename = f"{self.use_case}_subsumption_closure.csv"
+            path = os.path.join(self.root, filename)
+            return path
+        elif self.test_existential:
+            filename = f"{self.use_case}_existential_subsumption_closure.csv"
+            path = os.path.join(self.root, filename)
+            return path
+    
+    @property
     def test_tuples_path(self):
         path = self.test_file
         assert os.path.exists(path), f"Test tuples file {path} does not exist"
@@ -381,6 +392,12 @@ class Model():
         else:
             raise ValueError(f"Invalid number of columns in {tuples_path}")
 
+        if self.graph_type == "rdf" and self.test_existential:
+            tuples = tuples[tuples["relation"].isin(self.class_to_id)]
+        else:
+            tuples = tuples[tuples["relation"].isin(self.relation_to_id)]
+
+        
         heads = [self.class_to_id[h] for h in tuples["head"]]
         tails = [self.class_to_id[t] for t in tuples["tail"]]
 
@@ -553,7 +570,7 @@ class Model():
         all_tail_idxs = self.ontology_classes_idxs.to(self.device)
         eval_rel_idx = None
 
-        testing_dataloader = self.create_subsumption_dataloader(self.test_tuples_path, batch_size=self.test_batch_size)
+        testing_dataloader = self.create_subsumption_dataloader(self.deductive_closure_path, batch_size=self.test_batch_size)
         with th.no_grad():
             for head_idxs, rel_idxs, tail_idxs in tqdm(testing_dataloader, desc="Getting labels"):
                 head_idxs = head_idxs.to(self.device)
@@ -660,6 +677,11 @@ class Model():
                     
                     mrr += 1/(rank+1)
                     filtered_mrr += 1/(filtered_rank+1)
+
+                    # if rank > 49000:
+                    #     sub = self.id_to_class[graph_head.item()]
+                    #     sup = self.id_to_class[graph_tail.item()]
+                    #     print(f"Outlier: {sub} -> {sup}")
                     
                     if rank == 0:
                         hits_at_1 += 1
