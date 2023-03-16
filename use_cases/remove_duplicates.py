@@ -13,4 +13,4 @@ if not "edgelist" in filename:
 
 outfile = filename.replace(".edgelist", ".no.duplicates.edgelist")
 # Save the cleaned data to a new CSV file
-df.to_csv(outfile, index=False)
+df.to_csv(outfile, index=False, sep="\t")
