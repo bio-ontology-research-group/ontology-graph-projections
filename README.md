@@ -39,7 +39,7 @@ Provide an overview of the directory structure and files, for example:
 │   ├── projectors
 └── use_cases
     ├── experiments
-	├── foodon
+    ├── foodon
     │   ├── data
     │   └── models
     └── go
